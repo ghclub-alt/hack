@@ -1,58 +1,78 @@
-/* 학생/선생님 공통 */
+/* 학생/선생님 공통
+   ai-booth(나를 닮은 AI 캐릭터 부스) 디자인 따라함: 모눈 종이 + 굵은 테두리 + 꾹 눌린 그림자 */
 * { box-sizing: border-box; }
 
 :root {
-  --bg: #f7f3ea;
-  --paper: #fffdf8;
-  --ink: #23302a;
-  --ink-2: #56615a;
-  --muted: #949c96;
-  --line: #e9e2d4;
-  --line-2: #f1ece2;
+  --paper: #f4efe4;
+  --dot: #dcd2bf;
+  --card: #fffdf7;
+  --ink: #1d1b18;
+  --ink-2: #5d574d;
+  --muted: #8f877a;
+  --soft: #efe8d9;
+  --memo: #fff6c9;
 
-  --forest: #1f5a46;
-  --forest-2: #2f7d5b;
-  --mint: #dcefe4;
-  --butter: #fbf0c4;
-  --peach: #fde7d9;
-  --lilac: #e7e4f3;
-  --coral: #ef7d57;
+  --red: #e4572e;
+  --yellow: #f3c548;
+  --teal: #2b9e8f;
+  --teal-soft: #d6efe9;
+  --blue: #3d6fb6;
+  --blue-soft: #dfe8f6;
+  --bad: #c8412b;
 
-  /* 경고 단계 (빨강 > 주황 > 노랑). 항상 아이콘이랑 같이 씀 */
-  --red: #c8384b;
-  --red-soft: #fbe4e6;
-  --orange: #c9621e;
-  --orange-soft: #fdeadb;
-  --yellow: #9a7400;
-  --yellow-soft: #fbf2cf;
+  /* 경고 단계 (빨강 > 주황 > 노랑). 색만 쓰지 말고 항상 글자랑 아이콘 같이 */
+  --red-soft: #fdeee9;
+  --orange: #c4610f;
+  --orange-soft: #fde8d3;
+  --yellow-ink: #7a5c00;
 
-  --r: 18px;
-  --shadow: 0 1px 2px rgba(35, 48, 42, .05), 0 10px 30px -14px rgba(35, 48, 42, .22);
-  --serif: 'Gowun Batang', 'Nanum Myeongjo', serif;
+  --line: 2px solid var(--ink);
 }
 
-html { -webkit-text-size-adjust: 100%; }
+html, body { margin: 0; }
+html { -webkit-text-size-adjust: 100%; overscroll-behavior-y: contain; }
 
 body {
-  margin: 0;
-  background: var(--bg);
+  background-color: var(--paper);
+  background-image: radial-gradient(var(--dot) 1.2px, transparent 1.2px);
+  background-size: 18px 18px;
   color: var(--ink);
-  font-family: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  font-family: 'Gowun Dodum', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
   font-size: 15px;
   line-height: 1.6;
   word-break: keep-all; /* 한글 글자 중간에서 줄 안 바뀌게 */
-  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
 }
 
-h1, h2, h3 { margin: 0; letter-spacing: -0.02em; }
+h1, h2, h3, .btn, .jua { font-family: 'Jua', 'Gowun Dodum', sans-serif; font-weight: 400; letter-spacing: -0.01em; }
+h1, h2, h3 { margin: 0; }
 p { margin: 0; }
 a { color: inherit; }
 button { font-family: inherit; color: inherit; }
 [hidden] { display: none !important; }
 
 .ic { flex: none; display: inline-block; vertical-align: -0.2em; }
+.hint { color: var(--ink-2); font-size: 13px; }
+.hand { font-family: 'Gaegu', cursive; font-weight: 700; }
 
-.hint { color: var(--muted); font-size: 13px; }
+/* 형광펜 */
+.hl { background: linear-gradient(transparent 58%, var(--yellow) 58%); padding: 0 2px; }
+
+/* 종이 붙인 테이프 */
+.tape { position: relative; }
+.tape::before {
+  content: '';
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  width: 110px;
+  height: 26px;
+  background: rgba(243, 197, 72, .78);
+  transform: translateX(-50%) rotate(-3deg);
+  border-left: 2px dashed rgba(0, 0, 0, .12);
+  border-right: 2px dashed rgba(0, 0, 0, .12);
+  z-index: 1;
+}
 
 /* ----- 버튼 ----- */
 .btn {
@@ -60,50 +80,46 @@ button { font-family: inherit; color: inherit; }
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: var(--forest);
-  color: #fff;
-  border: none;
-  border-radius: 12px;
-  padding: 11px 18px;
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  padding: 10px 18px;
+  border: var(--line);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink);
   cursor: pointer;
-  transition: transform .12s, background .2s, opacity .2s;
+  box-shadow: 3px 3px 0 var(--ink);
+  transition: transform .06s, box-shadow .06s;
+  touch-action: manipulation;
+  text-decoration: none;
 }
-.btn:hover { background: #18493a; }
-.btn:active { transform: scale(.97); }
-.btn:disabled { opacity: .5; pointer-events: none; }
-.btn.small { padding: 7px 13px; font-size: 13px; border-radius: 10px; }
-.btn.big { padding: 15px 20px; font-size: 16px; border-radius: 14px; }
+.btn:hover:not(:disabled) { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+.btn:active:not(:disabled) { transform: translate(3px, 3px); box-shadow: 0 0 0 var(--ink); }
+.btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+.btn.go { background: var(--red); color: #fff; }
+.btn.ok { background: var(--teal); color: #fff; }
+.btn.yellow { background: var(--yellow); }
+.btn.small { font-size: 14px; padding: 6px 12px; box-shadow: 2px 2px 0 var(--ink); }
+.btn.big { font-size: 19px; padding: 12px 24px; }
 .btn.full { width: 100%; }
-.btn.line { background: transparent; color: var(--forest); box-shadow: inset 0 0 0 1.5px var(--forest); }
-.btn.line:hover { background: var(--mint); }
-.btn.ghost { background: var(--line-2); color: var(--ink-2); }
-.btn.ghost:hover { background: var(--line); }
-.btn.danger { background: var(--red); }
-.btn.danger:hover { background: #a92c3d; }
+.btn.ghost { background: var(--soft); }
 
 /* ----- 입력 ----- */
 textarea, input[type=text], input[type=password], select {
   width: 100%;
-  padding: 12px 14px;
-  border: 1.5px solid var(--line);
-  border-radius: 12px;
-  font-family: inherit;
-  font-size: 15px;
+  font: inherit;
+  font-size: 16px;
+  padding: 11px 12px;
+  border: var(--line);
+  border-radius: 8px;
   background: #fff;
   color: var(--ink);
-  transition: border-color .2s, box-shadow .2s;
 }
 textarea { resize: vertical; line-height: 1.6; }
-textarea:focus, input:focus, select:focus {
-  outline: none;
-  border-color: var(--forest-2);
-  box-shadow: 0 0 0 4px rgba(47, 125, 91, .12);
-}
+textarea::placeholder, input::placeholder { color: #a39b8c; }
+textarea:focus, input:focus, select:focus { outline: 3px solid var(--yellow); outline-offset: 1px; }
 select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2356615a' stroke-width='1.6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%231d1b18' stroke-width='2'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 14px center;
   padding-right: 36px;
@@ -114,40 +130,42 @@ select {
 #toast {
   position: fixed;
   left: 50%;
-  bottom: 96px;
-  transform: translate(-50%, 20px);
+  bottom: 100px;
+  transform: translate(-50%, 16px);
   background: var(--ink);
   color: #fff;
-  padding: 10px 18px;
+  padding: 9px 18px;
   border-radius: 999px;
-  font-size: 14px;
+  font-size: 15px;
+  box-shadow: 3px 3px 0 rgba(0, 0, 0, .2);
   opacity: 0;
   pointer-events: none;
-  transition: .25s;
+  transition: .2s;
   z-index: 100;
   white-space: nowrap;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-/* ----- 경고 박스 (공통) ----- */
+/* ----- 경고 박스 ----- */
 .alert {
   display: flex;
   gap: 12px;
-  padding: 14px 16px;
-  border-radius: 14px;
+  padding: 12px 14px;
+  border: var(--line);
+  border-radius: 8px;
   font-size: 14px;
 }
 .alert .ic { margin-top: 2px; }
-.alert b { display: block; font-size: 15px; }
-.alert.red { background: var(--red-soft); color: #7d1f2c; }
-.alert.red .ic { color: var(--red); }
-.alert.orange { background: var(--orange-soft); color: #6e3410; }
+.alert b { display: block; font-family: 'Jua', sans-serif; font-weight: 400; font-size: 16px; }
+.alert.red { background: var(--red-soft); border-color: var(--bad); color: #7a2414; }
+.alert.red .ic { color: var(--bad); }
+.alert.orange { background: var(--orange-soft); border-color: var(--orange); color: #63300a; }
 .alert.orange .ic { color: var(--orange); }
-.alert.yellow { background: var(--yellow-soft); color: #5a4500; }
-.alert.yellow .ic { color: var(--yellow); }
+.alert.yellow { background: var(--memo); color: #4f3d00; }
+.alert.yellow .ic { color: var(--yellow-ink); }
 
 @keyframes up {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: none; }
 }
 @keyframes shake {
@@ -157,6 +175,7 @@ select {
   60% { transform: translateX(-5px); }
   80% { transform: translateX(3px); }
 }
+@keyframes fade { from { opacity: 0; } }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }

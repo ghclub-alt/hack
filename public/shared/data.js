@@ -2,11 +2,12 @@
 // (서버에서는 require로 불러감 → 맨 아래 module.exports)
 
 const MOODS = [
-  { v: 1, label: '좋아', color: '#2f7d5b', ink: '#fff', reply: '좋다! 그 기분 오래 갔으면.' },
-  { v: 2, label: '괜찮아', color: '#7fb893', ink: '#1f3d2f', reply: '괜찮은 하루였구나.' },
-  { v: 3, label: '그냥 그래', color: '#d6d0c4', ink: '#4a453c', reply: '그런 날도 있지 뭐.' },
-  { v: 4, label: '좀 힘들어', color: '#ef9a76', ink: '#5a2a14', reply: '좀 힘들었구나. 오늘은 일찍 쉬자.' },
-  { v: 5, label: '많이 힘들어', color: '#d1495b', ink: '#fff', reply: '많이 힘들었구나. 혼자 안 버텨도 돼.' },
+  // 색은 ai-booth 색(청록-노랑-빨강)에 맞춤. 좋음 ↔ 힘듦 양쪽으로 갈라지게
+  { v: 1, label: '좋아', color: '#2b9e8f', ink: '#fff', reply: '좋다! 그 기분 오래 갔으면.' },
+  { v: 2, label: '괜찮아', color: '#9fd3c7', ink: '#1d1b18', reply: '괜찮은 하루였구나.' },
+  { v: 3, label: '그냥 그래', color: '#e3dac8', ink: '#1d1b18', reply: '그런 날도 있지 뭐.' },
+  { v: 4, label: '좀 힘들어', color: '#f5a27e', ink: '#1d1b18', reply: '좀 힘들었구나. 오늘은 일찍 쉬자.' },
+  { v: 5, label: '많이 힘들어', color: '#e4572e', ink: '#fff', reply: '많이 힘들었구나. 혼자 안 버텨도 돼.' },
 ]
 
 const TYPES = ['따돌림', '놀림/욕설', '단톡방·SNS', '친구 관계 고민', '기타']

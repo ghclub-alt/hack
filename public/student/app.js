@@ -249,7 +249,7 @@ function runCheck(fromFix) {
   }
 
   if (r.found.some(b => b.alt)) {
-    html += `<button class="btn line full" id="btnFix">${icon('wand', 18)} 바꾼 말로 다시 써보기</button>`
+    html += `<button class="btn yellow full" id="btnFix">${icon('wand', 18)} 바꾼 말로 다시 써보기</button>`
   }
 
   if (r.tips.length) {
@@ -299,7 +299,7 @@ function showWarn(text) {
     <div class="quote">${esc(text)}</div>
     <p>한번 보낸 말은 캡처돼서 계속 남아.</p>
     <div class="btns">
-      <button class="btn big full" id="warnRewrite">다시 쓸게</button>
+      <button class="btn go big full" id="warnRewrite">다시 쓸게</button>
       <button class="btn ghost full" data-close>결과만 볼게</button>
     </div>`
   $('warnModal').hidden = false
@@ -376,8 +376,8 @@ function showTicket(code, urgent) {
     <div class="ticket-bottom">
       <small>접수번호</small>
       <div class="code">${code}</div>
-      <button class="btn small" id="btnCopy">${icon('copy', 15)} 번호 복사</button>
-      <p class="hint" style="color:rgba(255,255,255,.65);margin-top:10px">이 번호로 답장을 확인해. 캡처해두면 편해.</p>
+      <button class="btn yellow small" id="btnCopy">${icon('copy', 15)} 번호 복사</button>
+      <p class="hint code-hint">이 번호로 답장을 확인해. 캡처해두면 편해.</p>
     </div>
   </div>`
   done.hidden = false

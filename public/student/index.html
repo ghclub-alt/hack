@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#f7f3ea">
+  <meta name="theme-color" content="#f4efe4">
   <title>쉼표, 잠깐 쉬어가도 괜찮아</title>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&display=swap">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&family=Jua&display=swap">
   <link rel="stylesheet" href="/shared/base.css">
   <link rel="stylesheet" href="app.css">
 </head>
@@ -29,7 +29,7 @@
           <h1 id="helloText">안녕</h1>
         </div>
 
-        <div class="card mood-card">
+        <div class="card mood-card tape">
           <div class="card-hd">
             <h2>오늘 마음 날씨는?</h2>
             <span class="pill"><svg class="ic" width="13" height="13"><use href="#i-lock"/></svg> 익명</span>
@@ -44,7 +44,7 @@
           <div>
             <b>요즘 힘든 날이 계속 있었네</b>
             <p>혼자 버티지 않아도 돼. 이름 안 쓰고 선생님한테 말할 수 있어.</p>
-            <button class="btn small" data-go="help">얘기하러 가기</button>
+            <button class="btn go small" data-go="help">얘기하러 가기</button>
           </div>
         </div>
 
@@ -75,14 +75,14 @@
       <!-- ============ 말 점검 ============ -->
       <section class="page" id="page-check" hidden>
         <div class="page-hd">
-          <h1>보내기 전에 한번 더</h1>
+          <h1>보내기 전에 <span class="hl">한번 더</span></h1>
           <p>단톡방이나 DM에 보내려는 말을 넣어봐. 이건 서버로 안 가고 내 폰에서만 확인해.</p>
         </div>
 
         <div class="card composer">
           <textarea id="msgInput" rows="3" placeholder="보내려는 메시지를 적어봐"></textarea>
           <div class="examples" id="examples"></div>
-          <button class="btn full" id="btnCheck">
+          <button class="btn go big full" id="btnCheck">
             <svg class="ic" width="18" height="18"><use href="#i-send"/></svg> 확인해보기
           </button>
         </div>
@@ -93,7 +93,7 @@
       <!-- ============ 도움 요청 ============ -->
       <section class="page" id="page-help" hidden>
         <div class="page-hd">
-          <h1>도움 요청하기</h1>
+          <h1><span class="hl">도움</span> 요청하기</h1>
           <p><svg class="ic" width="14" height="14"><use href="#i-lock"/></svg> 이름 안 써도 돼. 선생님은 반이랑 내용만 볼 수 있어.</p>
         </div>
 
@@ -157,7 +157,7 @@
             </div>
           </div>
 
-          <button class="btn big full" type="submit">
+          <button class="btn go big full" type="submit">
             <svg class="ic" width="18" height="18"><use href="#i-send"/></svg> 선생님한테 보내기
           </button>
         </form>
@@ -168,7 +168,7 @@
           <h3 class="sec-title">답장 확인</h3>
           <div class="code-row">
             <input type="text" id="codeInput" placeholder="접수번호 4자리" maxlength="4" autocomplete="off">
-            <button class="btn" id="btnFind">확인</button>
+            <button class="btn ok" id="btnFind">확인</button>
           </div>
           <div class="codes" id="myCodes"></div>
           <div id="findResult"></div>
@@ -178,7 +178,7 @@
       <!-- ============ 봤을 때 ============ -->
       <section class="page" id="page-guide" hidden>
         <div class="page-hd">
-          <h1>이럴 땐 이렇게</h1>
+          <h1>이럴 땐 <span class="hl">이렇게</span></h1>
           <p>정답은 없어. 내가 할 수 있는 것부터 하나만.</p>
         </div>
         <div id="guideList"></div>
@@ -204,9 +204,12 @@
   <!-- 처음 왔을 때 -->
   <div class="welcome" id="welcome" hidden>
     <div class="welcome-in">
-      <div class="welcome-faces" id="welcomeFaces"></div>
-      <div class="big-brand">쉼표<span>,</span></div>
+      <small>우리 학교 마음 쉼터 ✎</small>
+      <div class="big-brand"><span class="hl">쉼표</span><span>,</span></div>
       <p class="welcome-sub">잠깐 쉬어가도 괜찮아</p>
+
+      <div class="card tape welcome-box">
+      <div class="welcome-faces" id="welcomeFaces"></div>
 
       <ul class="promise">
         <li><svg class="ic" width="18" height="18"><use href="#i-lock"/></svg> 이름은 안 받아. 반만 알려줘.</li>
@@ -218,7 +221,10 @@
         <select id="selGrade"></select>
         <select id="selClass"></select>
       </div>
-      <button class="btn big full" id="btnSetup">시작하기</button>
+      <button class="btn go big full" id="btnSetup">시작!</button>
+      </div>
+
+      <p class="credit">○○중학교 ○학년 쉼표팀이 만들었습니다^^</p>
     </div>
   </div>
 

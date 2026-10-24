@@ -130,10 +130,10 @@ function renderAlerts(alerts) {
     <div class="alert ${a.level}">
       ${icon(a.level === 'orange' ? 'bell' : 'alert', 20)}
       <div><b><span class="lv">${LV[a.level]}</span>${esc(a.title)}</b>${esc(a.msg)}</div>
-      ${a.code ? `<button class="go" data-code="${a.code}">보러 가기</button>` : ''}
+      ${a.code ? `<button class="btn small alert-go" data-code="${a.code}">보러 가기</button>` : ''}
     </div>`).join('')
 
-  box.querySelectorAll('.go').forEach(b => {
+  box.querySelectorAll('.alert-go').forEach(b => {
     b.onclick = () => jumpTo(b.dataset.code)
   })
 }
@@ -372,7 +372,7 @@ function renderReqs() {
             <div class="quick">${QUICK.map((q, i) => `<button data-q="${i}">${esc(q.length > 18 ? q.slice(0, 17) + '…' : q)}</button>`).join('')}</div>
             <textarea rows="2" data-code="${r.code}" placeholder="학생한테 답장 (학생은 접수번호로 확인해요)"></textarea>
             <div class="req-btns">
-              <button class="btn small" data-act="reply" data-code="${r.code}">${icon('send', 14)} ${r.reply ? '답장 고치기' : '답장 보내기'}</button>
+              <button class="btn ok small" data-act="reply" data-code="${r.code}">${icon('send', 14)} ${r.reply ? '답장 고치기' : '답장 보내기'}</button>
               <button class="btn ghost small" data-act="done" data-code="${r.code}">${icon('check', 14)} 마무리</button>
             </div>
           </div>` : ''}

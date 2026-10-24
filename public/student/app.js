@@ -148,7 +148,8 @@ async function pickMood(v) {
 }
 
 // ---------- 말 점검 ----------
-// 일부러 서버로 안 보냄. 보내기 전 말은 저장할 이유가 없어서
+// 단어 목록으로 폰에서 먼저 바로 보고, ChatGPT 켜져 있으면 서버 거쳐서 더 자세히 봄
+// (어느 쪽이든 저장은 안 함. 보내기 전 말은 저장할 이유가 없어서)
 const EXAMPLES = [
   '너 진짜 노답이다 ㅋㅋㅋ',
   '쟤 빼고 우리끼리 가자',
@@ -184,38 +185,89 @@ function checkMsg(text) {
   return { found, score, tips }
 }
 
+const VERDICT = [
+  { lv: 'ok', icon: 'check', title: '괜찮아 보여!', sub: '그래도 화난 상태면 10분만 있다가 보내는 것도 방법이야.' },
+  { lv: 'soso', icon: 'alert', title: '한 번만 더 읽어볼래?', sub: '장난이어도 받는 사람한테는 다르게 들릴 수 있어.' },
+  { lv: 'bad', icon: 'alert', title: '이건 안 보내는 게 좋겠어', sub: '받는 친구한테 오래 남는 말이 될 수 있어.' },
+]
+
+const LAW_HTML = `<div class="alert red law">
+  ${icon('alert', 18)}
+  <div><b>단톡방 욕설, 따돌림도 학교폭력이야</b>
+  사이버 언어폭력이나 따돌림은 학교폭력예방법에 따라 학교폭력으로 처리될 수 있어.</div>
+</div>`
+
+function levelOf(score) {
+  return score === 0 ? 0 : score <= 2 ? 1 : 2
+}
+
+function pinOf(idx, score) {
+  if (idx === 0) return 14
+  if (idx === 1) return Math.min(60, 35 + score * 10)
+  return Math.min(94, 72 + Math.max(0, score - 3) * 6)
+}
+
+// 여러 표현 한 번에 표시 (겹치면 합침)
+function markAll(text, terms) {
+  const ranges = []
+  terms.forEach(t => {
+    if (!t) return
+    let i = text.indexOf(t)
+    while (i !== -1) {
+      ranges.push([i, i + t.length])
+      i = text.indexOf(t, i + t.length)
+    }
+  })
+  ranges.sort((a, b) => a[0] - b[0])
+  const merged = []
+  ranges.forEach(r => {
+    const last = merged[merged.length - 1]
+    if (last && r[0] <= last[1]) last[1] = Math.max(last[1], r[1])
+    else merged.push([...r])
+  })
+  let out = ''
+  let pos = 0
+  merged.forEach(([a, b]) => {
+    out += esc(text.slice(pos, a)) + `<mark>${esc(text.slice(a, b))}</mark>`
+    pos = b
+  })
+  return out + esc(text.slice(pos))
+}
+
+function setVerdict(box, idx, score) {
+  const v = VERDICT[idx]
+  const h = box.querySelector('.verdict')
+  h.className = 'verdict ' + v.lv
+  h.innerHTML = `${icon(v.icon, 22)} ${v.title}`
+  box.querySelector('.verdict-sub').textContent = v.sub
+
+  // 바늘 움직이는 거 보이게 한 박자 늦게
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      box.querySelector('.meter-pin').style.left = pinOf(idx, score) + '%'
+    })
+  })
+
+  const law = box.querySelector('.law')
+  const aiBox = box.querySelector('.ai-box')
+  if (idx === 2 && !law) {
+    if (aiBox) aiBox.insertAdjacentHTML('beforebegin', LAW_HTML)
+    else box.querySelector('.result').insertAdjacentHTML('beforeend', LAW_HTML)
+  }
+  if (idx < 2 && law) law.remove()
+}
+
 function runCheck(fromFix) {
   const text = $('msgInput').value.trim()
   const box = $('checkResult')
+  checkRun++ // 예전 AI 결과 늦게 와도 무시하게
   if (!text) {
     box.innerHTML = ''
     return
   }
 
   const r = checkMsg(text)
-  let shown = esc(text)
-  r.found.forEach(b => {
-    shown = shown.split(esc(b.word)).join(`<mark>${esc(b.word)}</mark>`)
-  })
-
-  let lv, title, sub, pin
-  if (r.score === 0) {
-    lv = 'ok'
-    title = '괜찮아 보여!'
-    sub = '그래도 화난 상태면 10분만 있다가 보내는 것도 방법이야.'
-    pin = 14
-  } else if (r.score <= 2) {
-    lv = 'soso'
-    title = '한 번만 더 읽어볼래?'
-    sub = '장난이어도 받는 사람한테는 다르게 들릴 수 있어.'
-    pin = 35 + r.score * 10
-  } else {
-    lv = 'bad'
-    title = '이건 안 보내는 게 좋겠어'
-    sub = '받는 친구한테 오래 남는 말이 될 수 있어.'
-    pin = Math.min(94, 72 + (r.score - 3) * 6)
-  }
-  const ic = { ok: 'check', soso: 'alert', bad: 'alert' }[lv]
+  const localIdx = levelOf(r.score)
 
   const now = new Date()
   const time = `${now.getHours() < 12 ? '오전' : '오후'} ${now.getHours() % 12 || 12}:${String(now.getMinutes()).padStart(2, '0')}`
@@ -227,8 +279,8 @@ function runCheck(fromFix) {
     </div>
     <div class="meter-labels"><span>괜찮아</span><span>조심</span><span>위험</span></div>
 
-    <h3 class="verdict ${lv}">${icon(ic, 22)} ${title}</h3>
-    <p class="verdict-sub">${sub}</p>
+    <h3 class="verdict"></h3>
+    <p class="verdict-sub"></p>
 
     <div class="chatroom">
       <div class="chat-hd">우리반 단톡 <span>28</span></div>
@@ -238,7 +290,7 @@ function runCheck(fromFix) {
           <div><span class="who">반 친구</span><div class="bubble">내일 수행평가 뭐였지?</div></div>
         </div>
         <div class="msg mine">
-          <div class="bubble">${shown}</div>
+          <div class="bubble">${markAll(text, r.found.map(b => b.word))}</div>
           <span class="time">${time}</span>
         </div>
       </div>
@@ -261,23 +313,9 @@ function runCheck(fromFix) {
   if (r.tips.length) {
     html += '<div class="tips">' + r.tips.map(t => `<p>${t}</p>`).join('') + '</div>'
   }
-
-  if (lv === 'bad') {
-    html += `<div class="alert red law">
-      ${icon('alert', 18)}
-      <div><b>단톡방 욕설, 따돌림도 학교폭력이야</b>
-      사이버 언어폭력이나 따돌림은 학교폭력예방법에 따라 학교폭력으로 처리될 수 있어.</div>
-    </div>`
-  }
   html += '</div>'
   box.innerHTML = html
-
-  // 바늘 움직이는 거 보이게 한 박자 늦게
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      box.querySelector('.meter-pin').style.left = pin + '%'
-    })
-  })
+  setVerdict(box, localIdx, r.score)
 
   const fix = $('btnFix')
   if (fix) {
@@ -293,7 +331,64 @@ function runCheck(fromFix) {
   }
 
   // 바꾸기 버튼으로 다시 본 거면 경고창은 또 안 띄움
-  if (lv === 'bad' && !fromFix) showWarn(text)
+  // AI 켜져 있으면 AI 결과 보고 띄움 ("죽어라 공부" 같은 거에 괜히 뜨지 않게)
+  if (aiOn) aiCheck(text, r, localIdx, fromFix)
+  else if (localIdx === 2 && !fromFix) showWarn(text)
+}
+
+// ---------- 말 점검: ChatGPT ----------
+let aiOn = false
+let checkRun = 0
+
+async function aiCheck(text, r, localIdx, fromFix) {
+  const run = checkRun
+  const box = $('checkResult')
+  box.querySelector('.result').insertAdjacentHTML('beforeend',
+    `<div class="ai-box loading" id="aiBox">${icon('sparkle', 16)} AI가 더 자세히 보는 중<span class="dots"><i></i><i></i><i></i></span></div>`)
+
+  let a
+  try {
+    a = await api('/api/check', { body: { text } })
+  } catch (e) {
+    if (run !== checkRun || !$('aiBox')) return
+    $('aiBox').className = 'ai-box off'
+    $('aiBox').innerHTML = `${icon('sparkle', 16)} AI가 지금 안 돼서 단어로만 봤어`
+    if (localIdx === 2 && !fromFix) showWarn(text)
+    return
+  }
+  if (run !== checkRun || !$('aiBox')) return // 그 사이에 다른 말 넣었으면 무시
+
+  const aiIdx = { ok: 0, careful: 1, hurtful: 2 }[a.level]
+  // AI가 더 심하다고 하면 올리고, 단어 목록이 오해한 거면("죽어라 공부" 같은) 내림
+  // 근데 심한 욕이 있으면 '조심'까지만 내림
+  const idx = localIdx === 2 && aiIdx === 0 ? 1 : aiIdx
+  if (idx !== localIdx) setVerdict(box, idx, Math.max(r.score, idx === 2 ? 3 : 1))
+
+  // AI가 짚은 표현도 같이 표시
+  box.querySelector('.msg.mine .bubble').innerHTML = markAll(text, [...r.found.map(b => b.word), ...a.phrases])
+
+  $('aiBox').className = 'ai-box'
+  $('aiBox').innerHTML = `
+    <div class="ai-hd">${icon('sparkle', 15)} AI(ChatGPT)가 같이 봤어</div>
+    ${a.summary ? `<p class="ai-sum">${esc(a.summary)}</p>` : ''}
+    ${a.why ? `<p class="ai-why">${esc(a.why)}</p>` : ''}
+    ${a.better && a.better !== text ? `
+      <div class="ai-better">
+        <small>이렇게 바꿔보면?</small>
+        <p>${esc(a.better)}</p>
+        <button class="btn yellow small" id="btnUseAi">${icon('wand', 15)} 이걸로 바꾸기</button>
+      </div>` : ''}`
+
+  const use = $('btnUseAi')
+  if (use) {
+    use.onclick = () => {
+      $('msgInput').value = a.better
+      runCheck(true)
+      toast('AI가 바꾼 말로 넣었어')
+    }
+  }
+
+  if (idx === 2 && !fromFix) showWarn(text)
 }
 
 // 심한 말이면 경고창 한번 띄움
@@ -741,7 +836,11 @@ setupInstall({
 window.addEventListener('online', renderMine)
 
 // AI 판단 켜져 있으면 알려주기 (학생 글이 밖으로 나가는 거니까)
-api('/api/config').then(c => { $('aiHint').hidden = !c.ai }).catch(() => {})
+api('/api/config').then(c => {
+  aiOn = c.ai
+  $('aiHint').hidden = !c.ai
+  if (c.ai) $('checkNote').textContent = '단톡방이나 DM에 보내려는 말을 넣어봐. AI(ChatGPT)가 같이 봐주고, 넣은 말은 저장 안 해.'
+}).catch(() => {})
 
 // ---------- 시작 ----------
 if (!me) $('welcome').hidden = false

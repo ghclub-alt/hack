@@ -760,3 +760,22 @@ mark {
 .story.locked { opacity: .75; }
 .modal p b { color: var(--ink); }
 .ai-hint { margin-top: 4px; font-size: 13px; color: var(--forest); }
+
+/* ----- 말 점검 AI ----- */
+.ai-box {
+  margin-top: 14px;
+  border: var(--line);
+  border-radius: 14px;
+  background: var(--forest-soft);
+  padding: 12px 14px;
+  font-size: 14.5px;
+  animation: up .3s ease both;
+}
+.ai-box.loading, .ai-box.off { display: flex; align-items: center; gap: 6px; color: var(--ink-2); background: #fff; border-style: dashed; }
+.ai-box.loading .dots { background: none; border: 0; padding: 0 0 0 4px; }
+.ai-hd { display: flex; align-items: center; gap: 5px; font-weight: 700; color: var(--forest); font-size: 13.5px; margin-bottom: 4px; }
+.ai-sum { font-weight: 700; font-size: 15.5px; }
+.ai-why { color: var(--ink-2); margin-top: 2px; }
+.ai-better { margin-top: 10px; background: #fff; border: var(--line); border-radius: 12px; padding: 10px 12px; }
+.ai-better small { color: var(--ink-2); font-size: 12.5px; }
+.ai-better p { font-size: 15.5px; margin: 2px 0 8px; }

@@ -48,9 +48,14 @@ function start() {
 async function showAiState() {
   try {
     const c = await api('/api/config')
+    const why = {
+      'bad-key': '키가 틀렸어요',
+      'no-model': '이 키로 못 쓰는 모델이에요',
+      quota: '크레딧이 없어요',
+    }[c.aiState]
     $('aiState').innerHTML = c.ai
       ? `${icon('sparkle', 14)} ChatGPT 판단 켜짐<small>${esc(c.model)}</small>`
-      : `${icon('sparkle', 14)} ChatGPT 판단 꺼짐<small>단어 목록으로 판단 중</small>`
+      : `${icon('sparkle', 14)} ChatGPT 판단 꺼짐<small>${why ? why + ' · ' : ''}단어 목록으로 판단 중</small>`
     $('aiState').classList.toggle('on', c.ai)
   } catch (e) {}
 }

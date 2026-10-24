@@ -9,10 +9,14 @@ const path = require('path')
 const fs = require('fs')
 
 // .env 파일 있으면 읽기 (API 키 같은 거. git에는 안 올라감)
+const fromEnvFile = new Set()
 try {
   fs.readFileSync(path.join(__dirname, '.env'), 'utf8').split('\n').forEach(line => {
     const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/)
-    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+    if (m && m[2] && !process.env[m[1]]) {
+      process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+      fromEnvFile.add(m[1])
+    }
   })
 } catch (e) {}
 
@@ -36,6 +40,7 @@ function okCls(cls) {
 
 function makeApp(folder) {
   const app = express()
+  app.set('trust proxy', true) // codespace/터널 뒤에서도 학생마다 ip 따로 보이게
   app.use(express.json({ limit: '20kb' }))
   // 인터넷 다시 연결됐나 확인용 (로그인 필요 없음)
   app.get('/api/ping', (req, res) => res.json({ ok: true }))
@@ -254,6 +259,25 @@ student.post('/api/requests/:code/messages', async (req, res) => {
   res.json({ ...forStudent(r), warned, danger: findDanger(text).length > 0 || (v.by === 'ai' && v.danger) })
 })
 
+// 말 점검을 ChatGPT로 (키 있을 때만). 저장은 안 하고 결과만 돌려줌
+const checkHits = new Map()
+student.post('/api/check', async (req, res) => {
+  if (!ai.enabled()) return res.status(404).json({ error: 'AI 꺼져 있음' })
+  const text = String(req.body.text || '').trim().slice(0, 500)
+  if (!text) return res.status(400).json({ error: '내용이 비었어' })
+
+  // 한 사람이 너무 많이 못 쓰게 (1분에 20번, 돈 나가니까)
+  const now = Date.now()
+  const hits = (checkHits.get(req.ip) || []).filter(t => now - t < 60000)
+  if (hits.length >= 20) return res.status(429).json({ error: '잠깐 쉬었다가 해줘' })
+  hits.push(now)
+  checkHits.set(req.ip, hits)
+
+  const c = await ai.coach(text)
+  if (!c) return res.status(503).json({ error: 'AI가 지금 대답을 안 해' })
+  res.json(c)
+})
+
 // AI 판단 켜져 있는지 (학생 화면에 안내하려고)
 student.get('/api/config', (req, res) => {
   res.json({ ai: ai.enabled() })
@@ -414,7 +438,7 @@ teacher.get('/api/alerts', (req, res) => {
 })
 
 teacher.get('/api/config', (req, res) => {
-  res.json({ ai: ai.enabled(), model: ai.enabled() ? ai.MODEL : '' })
+  res.json({ ai: ai.enabled(), model: ai.enabled() ? ai.MODEL : '', aiState })
 })
 
 // 학생이 뭐 보내거나 기분 누르면 바로 알려주기
@@ -663,6 +687,59 @@ function showStudentQr() {
   console.log('')
 }
 
+// ---------- ChatGPT 키 확인 ----------
+let aiState = 'off'
+
+function keySource() {
+  if (fromEnvFile.has('OPENAI_API_KEY')) return '.env 파일'
+  if (process.env.CODESPACES) return 'codespace 비밀값'
+  return '환경변수'
+}
+
+async function checkAi() {
+  if (!process.env.OPENAI_API_KEY) {
+    console.log('ChatGPT → 꺼짐 (OPENAI_API_KEY 없음. 단어 목록으로 판단)')
+    if (process.env.CODESPACES) {
+      console.log('  codespace 비밀값(Secrets)에 넣었으면 codespace를 한 번 다시 시작해야 들어와요')
+    }
+    return
+  }
+  const key = `키 ${ai.maskedKey()} (${keySource()})`
+  console.log(`ChatGPT → 키 확인 중... ${key}`)
+  const v = await ai.verify()
+  aiState = v.state
+  const msg = {
+    ok: `ChatGPT → 켜짐! (${ai.MODEL}) 말 점검이랑 메시지 판단에 써요`,
+    'bad-key': 'ChatGPT → 키가 틀렸어요 (401). 키 다시 복사해서 넣어주세요',
+    'no-model': `ChatGPT → ${ai.MODEL} 모델을 이 키로 못 써요. OPENAI_MODEL 바꿔보기`,
+    quota: 'ChatGPT → 키는 맞는데 크레딧(돈)이 없어요. OpenAI 결제 확인',
+    busy: 'ChatGPT → 지금 요청이 많대요 (429). 일단 켜두고 안 되면 단어 목록으로',
+    unreachable: `ChatGPT → OpenAI에 연결이 안 돼요 (${v.detail}). 일단 켜두고 안 되면 단어 목록으로`,
+    error: `ChatGPT → 확인 실패 (${v.status}). 일단 켜두고 안 되면 단어 목록으로`,
+  }[v.state]
+  console.log(msg)
+  if (!ai.enabled()) console.log('  → 지금은 단어 목록으로 판단해요. 고치고 서버 다시 켜기')
+}
+
+// API 키가 실수로 깃헙에 올라갔는지 확인
+function checkKeyLeak() {
+  execFile('git', ['ls-files', '--error-unmatch', '.env'], { cwd: __dirname }, err => {
+    if (!err) {
+      console.log('')
+      console.log('!!! .env 파일이 git에 올라가 있어요. API 키가 깃헙에 공개될 수 있어요 !!!')
+      console.log('    git rm --cached .env 하고 커밋, 그리고 OpenAI에서 키 새로 만들기')
+    }
+  })
+  execFile('git', ['grep', '-l', '-E', 'sk-[A-Za-z0-9_-]{20,}', '--', '.', ':!.env.example'], { cwd: __dirname }, (err, out) => {
+    const files = String(out || '').trim()
+    if (files) {
+      console.log('')
+      console.log(`!!! API 키처럼 생긴 게 코드에 들어 있어요: ${files.split('\n').join(', ')}`)
+      console.log('    깃헙에 올리기 전에 지우고, 이미 올렸으면 OpenAI에서 키 새로 만들기')
+    }
+  })
+}
+
 let opened = 0
 function onOpen() {
   opened += 1
@@ -680,8 +757,7 @@ student.listen(PORT, () => {
 
 teacher.listen(TEACHER_PORT, () => {
   console.log(`선생님 화면 → ${urlOf(TEACHER_PORT)}  (PIN: ${PIN})`)
-  console.log(ai.enabled()
-    ? `ChatGPT 판단 → 켜짐 (${ai.MODEL})`
-    : 'ChatGPT 판단 → 꺼짐 (OPENAI_API_KEY 없음. 단어 목록으로 판단)')
+  checkAi()
+  checkKeyLeak()
   onOpen()
 }).on('error', onListenError(TEACHER_PORT))

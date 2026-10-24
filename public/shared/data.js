@@ -59,6 +59,20 @@ const BAD_WORDS = [
   { word: '느금', level: 3, alt: null },
   { word: '애미', level: 3, alt: null },
   { word: '정신병', level: 2, alt: null },
+  // 대화방에서도 쓰려고 흔한 욕 추가
+  { word: '씨발', level: 3, alt: null },
+  { word: '시발', level: 3, alt: null },
+  { word: 'ㅅㅂ', level: 3, alt: null },
+  { word: 'ㅆㅂ', level: 3, alt: null },
+  { word: '개새끼', level: 3, alt: null },
+  { word: '새끼', level: 2, alt: null },
+  { word: '좆', level: 3, alt: null },
+  { word: '존나', level: 1, alt: '진짜' },
+  { word: 'ㅈㄴ', level: 1, alt: '진짜' },
+  { word: '지랄', level: 2, alt: null },
+  { word: '미친놈', level: 2, alt: null },
+  { word: '미친년', level: 3, alt: null },
+  { word: 'ㅁㅊ', level: 1, alt: null },
 ]
 
 const GUIDE = [
@@ -125,6 +139,13 @@ function findDanger(text) {
   return DANGER_WORDS.filter(w => flat.includes(w.replace(/\s/g, '')))
 }
 
+// 욕/상처 주는 말 찾기. 말 점검이랑 대화방 경고에 씀
+function findBad(text) {
+  const flat = String(text).replace(/\s/g, '')
+  const hit = BAD_WORDS.filter(b => flat.includes(b.word.replace(/\s/g, ''))).map(b => b.word)
+  return [...new Set(hit)]
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { MOODS, TYPES, WANT, STATUS, DANGER_WORDS, BAD_WORDS, GUIDE, TIPS, findDanger }
+  module.exports = { MOODS, TYPES, WANT, STATUS, DANGER_WORDS, BAD_WORDS, GUIDE, TIPS, findDanger, findBad }
 }

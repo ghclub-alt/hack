@@ -23,6 +23,7 @@ function go(name) {
   // 새로고침해도 보던 화면 그대로
   try { sessionStorage.setItem('shimpyo_page', name) } catch (e) {}
   if (name === 'help') renderMine()
+  else freshShown.clear()
 }
 
 document.querySelectorAll('.tab-btn').forEach(b => {
@@ -404,6 +405,9 @@ $('helpForm').onsubmit = async e => {
   if (!type) return toast('어떤 일인지 하나만 골라줘')
   if (text.length < 5) return toast('조금만 더 적어줄래?')
 
+  const bad = findBad(text)
+  if (bad.length && !(await confirmBad(bad))) return $('helpText').focus()
+
   const btn = e.target.querySelector('button[type=submit]')
   btn.disabled = true
   try {
@@ -457,32 +461,106 @@ function showTicket(code, urgent) {
   }
 }
 
-// ---------- 내가 보낸 이야기 ----------
-// 접수번호는 폰에 저장해두고, 열 때마다 서버에서 상태 다시 받아옴
+// ---------- 욕 들어간 글 보내기 전에 한번 ----------
+// 누가 나한테 한 말을 옮겨 적는 걸 수도 있어서 막지는 않고 물어보기만 함
+function confirmBad(words) {
+  return new Promise(resolve => {
+    $('warnBox').innerHTML = `
+      <div class="modal-ic">${icon('alert', 32)}</div>
+      <h3>욕이 들어 있어</h3>
+      <p>선생님한테 가는 글이야.</p>
+      <div class="quote">${words.map(w => `<mark>${esc(w)}</mark>`).join(', ')}</div>
+      <p><b>누가 너한테 한 말을 옮겨 적은 거면 그대로 보내도 괜찮아.</b><br>장난이면 선생님한테 경고를 받을 수 있어.</p>
+      <div class="btns">
+        <button class="btn go big full" id="badFix">고쳐 쓸게</button>
+        <button class="btn ghost full" id="badSend">그대로 보낼게</button>
+      </div>`
+    $('warnModal').hidden = false
+    const done = ok => {
+      $('warnModal').hidden = true
+      resolve(ok)
+    }
+    $('badFix').onclick = () => done(false)
+    $('badSend').onclick = () => done(true)
+  })
+}
+
+// ---------- 내가 보낸 이야기 (선생님이랑 대화) ----------
+// 접수번호는 폰에 저장해두고, 열 때마다 서버에서 대화 다시 받아옴
+function lastTeacherAt(r) {
+  const t = r.messages.filter(m => m.from === 'teacher')
+  return t.length ? t[t.length - 1].at : 0
+}
+
 function isFresh(r) {
-  return !!r.reply && me.seen[r.code] !== r.repliedAt
+  const t = lastTeacherAt(r)
+  return t > 0 && t > (me.seen[r.code] || 0)
+}
+
+// 이번에 화면에서 본 새 답장은 다른 탭 갈 때까지 배지 그대로 둠
+// (목록 다시 그릴 때마다 배지 없어지면 뭐가 새 건지 모름)
+const freshShown = new Set()
+
+// 쓰던 답장도 새로고침해도 남게
+const CHAT_KEY = 'shimpyo_chat_drafts'
+function chatDrafts() {
+  try {
+    return JSON.parse(localStorage.getItem(CHAT_KEY) || '{}')
+  } catch (e) {
+    return {}
+  }
+}
+function setChatDraft(code, text) {
+  const d = chatDrafts()
+  if (text) d[code] = text
+  else delete d[code]
+  try { localStorage.setItem(CHAT_KEY, JSON.stringify(d)) } catch (e) {}
+}
+
+function msgHtml(m) {
+  if (m.kind === 'info') return `<p class="sys">${esc(m.text)}</p>`
+  if (m.kind === 'warn') {
+    return `<div class="msg warn-msg">
+      <div class="avatar">${icon('alert', 16)}</div>
+      <div><span class="who">선생님 경고</span><div class="bubble">${esc(m.text)}</div></div>
+    </div>`
+  }
+  if (m.from === 'student') {
+    return `<div class="msg mine"><div class="bubble">${esc(m.text)}</div><span class="time">${timeAgo(m.at)}</span></div>`
+  }
+  return `<div class="msg">
+    <div class="avatar">${icon('user', 16)}</div>
+    <div><span class="who">선생님</span><div class="bubble">${esc(m.text)}</div></div>
+    <span class="time">${timeAgo(m.at)}</span>
+  </div>`
 }
 
 function storyHtml(r) {
-  const fresh = isFresh(r)
-  const short = r.text.length > 26 ? r.text.slice(0, 25) + '…' : r.text
-  return `<details class="story ${fresh ? 'fresh' : ''}" data-code="${r.code}" ${fresh ? 'open' : ''}>
+  const fresh = isFresh(r) || freshShown.has(r.code)
+  const first = r.messages[0].text
+  const short = first.length > 26 ? first.slice(0, 25) + '…' : first
+  const last = r.messages[r.messages.length - 1]
+  const waiting = last.from === 'student' && !r.locked && r.status !== 'done'
+
+  return `<details class="story ${fresh ? 'fresh' : ''} ${r.locked ? 'locked' : ''}" data-code="${r.code}" ${fresh ? 'open' : ''}>
     <summary>
       <span class="story-top">
         <span class="st st-${r.status}">${STATUS[r.status]}</span>
         ${fresh ? '<span class="new-badge">새 답장</span>' : ''}
+        ${r.warnings ? `<span class="warn-badge">${icon('alert', 12)} 경고 ${r.warnings}</span>` : ''}
         <span class="story-meta">${r.code} · ${esc(r.type)} · ${timeAgo(r.at)}</span>
       </span>
       <span class="story-sum">${esc(short)}</span>
     </summary>
     <div class="thread">
-      <div class="msg mine"><div class="bubble">${esc(r.text)}</div></div>
-      ${r.reply
-        ? `<div class="msg">
-            <div class="avatar">${icon('user', 16)}</div>
-            <div><span class="who">선생님</span><div class="bubble">${esc(r.reply)}</div></div>
-          </div>`
-        : `<div class="waiting"><span class="dots"><i></i><i></i><i></i></span> 선생님이 아직 확인 중이야</div>`}
+      ${r.messages.map(msgHtml).join('')}
+      ${waiting ? '<div class="waiting"><span class="dots"><i></i><i></i><i></i></span> 선생님이 아직 확인 중이야</div>' : ''}
+      ${r.locked
+        ? `<p class="sys locked-msg">${icon('lock', 14)} 선생님이 이 대화를 닫았어. 필요하면 새로 이야기를 보내줘.</p>`
+        : `<form class="chat-form" data-code="${r.code}">
+            <textarea rows="1" maxlength="500" placeholder="${r.status === 'done' ? '더 하고 싶은 말 있으면 보내도 돼' : '선생님한테 답장하기'}"></textarea>
+            <button class="btn go" type="submit" aria-label="보내기">${icon('send', 17)}</button>
+          </form>`}
     </div>
   </details>`
 }
@@ -517,17 +595,33 @@ async function renderMine() {
     return
   }
 
+  // 쓰고 있던 칸에 커서 있으면 다시 그린 뒤에도 거기로
+  const focused = document.activeElement && document.activeElement.closest
+    ? document.activeElement.closest('.chat-form')
+    : null
+  const focusedCode = focused ? focused.dataset.code : null
+
   // 펼쳐둔 거는 다시 그려도 펼친 채로
   const opened = [...box.querySelectorAll('details[open]')].map(d => d.dataset.code)
   box.innerHTML = list.map(storyHtml).join('')
+  const drafts = chatDrafts()
   box.querySelectorAll('details.story').forEach(d => {
     if (opened.includes(d.dataset.code)) d.open = true
+    const ta = d.querySelector('.chat-form textarea')
+    if (ta && drafts[d.dataset.code]) {
+      ta.value = drafts[d.dataset.code]
+      d.open = true
+    }
+    if (ta && d.dataset.code === focusedCode) ta.focus()
   })
 
   // 이 화면 보고 있으면 답장 읽은 걸로 (배지는 이번엔 그대로 보여줌)
   // toggle 이벤트로 하면 open 붙은 채로 그려질 때도 불려서 안 씀
   if (!$('page-help').hidden) {
-    list.filter(isFresh).forEach(r => { me.seen[r.code] = r.repliedAt })
+    list.filter(isFresh).forEach(r => {
+      me.seen[r.code] = lastTeacherAt(r)
+      freshShown.add(r.code)
+    })
     saveMe()
   }
   updateReplyBox(list)
@@ -541,6 +635,41 @@ function updateReplyBox(list) {
     ? `답장이 ${n}개 왔어. 확인해볼래?`
     : '내가 보낸 이야기에 답장이 왔어. 확인해볼래?'
 }
+
+$('myList').addEventListener('input', e => {
+  const ta = e.target.closest('.chat-form textarea')
+  if (!ta) return
+  setChatDraft(ta.closest('.chat-form').dataset.code, ta.value)
+  // 쓰는 만큼 칸 늘어나게
+  ta.style.height = 'auto'
+  ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
+})
+
+$('myList').addEventListener('submit', async e => {
+  const form = e.target.closest('.chat-form')
+  if (!form) return
+  e.preventDefault()
+
+  const ta = form.querySelector('textarea')
+  const text = ta.value.trim()
+  if (!text) return ta.focus()
+
+  const bad = findBad(text)
+  if (bad.length && !(await confirmBad(bad))) return ta.focus()
+
+  const btn = form.querySelector('button')
+  btn.disabled = true
+  try {
+    await api(`/api/requests/${form.dataset.code}/messages`, { body: { text } })
+    setChatDraft(form.dataset.code, '')
+    ta.value = ''
+    await renderMine()
+    toast('선생님한테 보냈어')
+  } catch (err) {
+    toast(err.message)
+  }
+  btn.disabled = false
+})
 
 async function findByCode() {
   const code = $('codeInput').value.trim().toUpperCase()

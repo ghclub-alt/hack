@@ -323,6 +323,33 @@ function isDanger(r) {
   return r.danger && r.danger.length > 0
 }
 
+// 위험한 말은 빨강, 욕은 노랑으로 표시
+function markText(text, danger, bad) {
+  let t = esc(text)
+  ;(danger || []).forEach(w => {
+    t = t.split(esc(w)).join(`<mark>${esc(w)}</mark>`)
+  })
+  ;(bad || []).forEach(w => {
+    t = t.split(esc(w)).join(`<mark class="bad">${esc(w)}</mark>`)
+  })
+  return t
+}
+
+function tMsgHtml(r, m) {
+  if (m.kind === 'info') return `<p class="sys">${esc(m.text)}</p>`
+  if (m.from === 'teacher') {
+    return `<div class="tmsg me ${m.kind === 'warn' ? 'warn' : ''}">
+      <small>${m.kind === 'warn' ? icon('alert', 12) + ' 보낸 경고' : '보낸 답장'} · ${timeAgo(m.at)}</small>
+      <div class="tbubble">${esc(m.text)}</div>
+    </div>`
+  }
+  const bad = m.bad && m.bad.length
+  return `<div class="tmsg">
+    <small>학생 · ${timeAgo(m.at)} ${bad ? `<span class="bad-tag">${icon('alert', 11)} 욕설 포함</span>` : ''}</small>
+    <div class="tbubble">${markText(m.text, r.danger, m.bad)}</div>
+  </div>`
+}
+
 function renderReqs() {
   const box = $('reqList')
 
@@ -347,35 +374,41 @@ function renderReqs() {
   }
 
   box.innerHTML = list.map(r => {
-    let txt = esc(r.text)
-    ;(r.danger || []).forEach(w => {
-      txt = txt.split(esc(w)).join(`<mark>${esc(w)}</mark>`)
-    })
-
     const wantIc = { listen: 'ear', advice: 'compass', meet: 'user' }[r.want]
+    const msgs = r.messages || []
+    const last = msgs[msgs.length - 1]
+    const followUp = r.status === 'new' && msgs.length > 1 && last.from === 'student'
+    const hasBad = msgs.some(m => m.from === 'student' && m.bad && m.bad.length)
 
-    return `<article class="req s-${r.status} ${isDanger(r) ? 'danger' : ''}" id="req-${r.code}">
+    return `<article class="req s-${r.status} ${isDanger(r) ? 'danger' : ''} ${r.locked ? 'locked' : ''}" id="req-${r.code}">
       <div class="req-avatar">${isDanger(r) ? icon('alert', 18) : esc(r.type[0])}</div>
       <div class="req-main">
         <div class="req-top">
           ${isDanger(r) ? `<span class="flag">${icon('alert', 13)} 위험 신호</span>` : ''}
+          ${followUp ? '<span class="tag new-msg">새 메시지</span>' : ''}
           <span class="tag">${esc(r.type)}</span>
           <span class="tag want-${r.want}">${icon(wantIc, 13)} ${WANT[r.want]}</span>
-          ${r.status !== 'new' ? `<span class="tag st-${r.status}">${STATUS[r.status]}</span>` : ''}
+          ${hasBad ? `<span class="tag bad-t">${icon('alert', 12)} 욕설</span>` : ''}
+          ${r.warnings ? `<span class="tag warn-t">경고 ${r.warnings}/3</span>` : ''}
+          ${r.status !== 'new' ? `<span class="tag st-${r.status}">${r.locked ? '대화 닫힘' : STATUS[r.status]}</span>` : ''}
           <span class="when">${clsName(r.cls)} · ${timeAgo(r.at)} · #${r.code}</span>
         </div>
         ${r.name ? `<p class="name">${icon('user', 14)} ${esc(r.name)}</p>` : ''}
-        <p class="txt">${txt}</p>
-        ${r.reply ? `<div class="sent"><small>보낸 답장</small>${esc(r.reply)}</div>` : ''}
-        ${r.status !== 'done' ? `
+        <div class="convo">${msgs.map(m => tMsgHtml(r, m)).join('')}</div>
+        ${r.locked ? `
+          <div class="locked-row">
+            <span>${icon('lock', 14)} 경고 3번이라 학생이 더 못 보내요</span>
+            <button class="btn ghost small" data-act="unlock" data-code="${r.code}">다시 열기</button>
+          </div>` : `
           <div class="reply-box">
             <div class="quick">${QUICK.map((q, i) => `<button data-q="${i}">${esc(q.length > 18 ? q.slice(0, 17) + '…' : q)}</button>`).join('')}</div>
-            <textarea rows="2" data-code="${r.code}" placeholder="학생한테 답장 (학생은 접수번호로 확인해요)"></textarea>
+            <textarea rows="2" data-code="${r.code}" placeholder="학생한테 답장 (학생은 내가 보낸 이야기에서 바로 봐요)"></textarea>
             <div class="req-btns">
-              <button class="btn ok small" data-act="reply" data-code="${r.code}">${icon('send', 14)} ${r.reply ? '답장 고치기' : '답장 보내기'}</button>
-              <button class="btn ghost small" data-act="done" data-code="${r.code}">${icon('check', 14)} 마무리</button>
+              <button class="btn ok small" data-act="reply" data-code="${r.code}">${icon('send', 14)} 답장 보내기</button>
+              <button class="btn small warn-btn" data-act="warn" data-code="${r.code}">${icon('alert', 14)} 경고 주기</button>
+              ${r.status !== 'done' ? `<button class="btn ghost small" data-act="done" data-code="${r.code}">${icon('check', 14)} 마무리</button>` : ''}
             </div>
-          </div>` : ''}
+          </div>`}
       </div>
     </article>`
   }).join('')
@@ -389,9 +422,11 @@ function renderReqs() {
   })
 }
 
+// 답장 칸 눌렀을 때만 빠른 답장 펼침
+// (버튼 눌렀을 때도 펼치면 버튼이 밀려나서 클릭이 빗나감)
 $('reqList').addEventListener('focusin', e => {
-  const box = e.target.closest('.reply-box')
-  if (box) box.classList.add('open')
+  const ta = e.target.closest('.reply-box textarea')
+  if (ta) ta.closest('.reply-box').classList.add('open')
 })
 
 $('reqList').addEventListener('click', async e => {
@@ -416,6 +451,21 @@ $('reqList').addEventListener('click', async e => {
       await api(`/api/requests/${code}/reply`, { body: { reply: ta.value } })
       ta.value = ''
       toast('답장 보냈어요')
+    } else if (btn.dataset.act === 'warn') {
+      const r = reqs.find(x => x.code === code)
+      const n = (r ? r.warnings : 0) + 1
+      const msg = prompt(
+        `학생한테 경고를 보내요 (${n}/3${n >= 3 ? ', 보내면 대화가 닫혀요' : ''}).\n` +
+        '하고 싶은 말을 쓰거나, 비워두면 기본 문구로 보내요.',
+        ''
+      )
+      if (msg === null) return
+      await api(`/api/requests/${code}/warn`, { body: { text: msg } })
+      toast(n >= 3 ? '경고 보내고 대화를 닫았어요' : '경고 보냈어요')
+    } else if (btn.dataset.act === 'unlock') {
+      if (!confirm('대화를 다시 열까요? 경고 횟수도 0으로 돌아가요.')) return
+      await api(`/api/requests/${code}/unlock`, { method: 'POST', body: {} })
+      toast('대화를 다시 열었어요')
     } else {
       if (!confirm('마무리할까요? 학생 화면에도 "마무리"로 보여요.')) return
       await api(`/api/requests/${code}/done`, { method: 'POST', body: {} })

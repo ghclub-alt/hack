@@ -723,3 +723,39 @@ mark {
 @media (display-mode: standalone) {
   .hd { padding-top: calc(12px + env(safe-area-inset-top)); }
 }
+
+/* ----- 선생님이랑 대화 ----- */
+.story .thread { gap: 8px; }
+.story .msg .time { align-self: flex-end; }
+.chat-form { display: flex; gap: 6px; align-items: flex-end; margin-top: 6px; }
+.chat-form textarea {
+  flex: 1;
+  min-height: 44px;
+  max-height: 160px;
+  resize: none;
+  font-size: 15px;
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+.chat-form .btn { flex: none; width: 44px; height: 44px; padding: 0; border-radius: 50%; }
+
+.sys { text-align: center; font-size: 12.5px; color: var(--ink-2); }
+.locked-msg { background: var(--soft); border-radius: 10px; padding: 8px; display: flex; gap: 6px; justify-content: center; align-items: center; }
+
+.warn-msg .avatar { background: var(--bad) !important; color: #fff !important; }
+.warn-msg .who { color: var(--bad); font-weight: 700; }
+.warn-msg .bubble { background: var(--red-soft); border-color: var(--bad); }
+
+.warn-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--bad);
+  border: 1.5px solid var(--bad);
+  border-radius: 999px;
+  padding: 0 7px;
+}
+.story.locked { opacity: .75; }
+.modal p b { color: var(--ink); }

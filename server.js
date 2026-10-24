@@ -8,7 +8,7 @@ const express = require('express')
 const path = require('path')
 const crypto = require('crypto')
 const { db, load, save, reset, today, makeCode } = require('./db')
-const { TYPES, findDanger } = require('./public/shared/data')
+const { TYPES, findDanger, findBad } = require('./public/shared/data')
 
 const PORT = Number(process.env.PORT) || 3000
 const TEACHER_PORT = Number(process.env.TEACHER_PORT) || 3001
@@ -16,6 +16,7 @@ const PIN = process.env.TEACHER_PIN || '1234'
 
 const WANTS = ['listen', 'advice', 'meet']
 const HOUR = 60 * 60 * 1000
+const WARN_LIMIT = 3 // 경고 이만큼 쌓이면 대화 닫힘
 
 function okCls(cls) {
   return typeof cls === 'string' && /^[1-3]-([1-9]|1[0-5])$/.test(cls)
@@ -37,6 +38,38 @@ function makeApp(folder) {
 }
 
 load()
+
+// 예전 데이터(답장 하나짜리)를 대화 형식으로 바꿈
+function migrate(r) {
+  if (!r.messages) {
+    r.messages = [{ from: 'student', text: r.text, at: r.at, bad: findBad(r.text) }]
+    if (r.reply) r.messages.push({ from: 'teacher', text: r.reply, at: r.repliedAt || r.at })
+  }
+  if (r.warnings == null) r.warnings = 0
+  if (r.locked == null) r.locked = false
+}
+db.reqs.forEach(migrate)
+
+function findReq(code) {
+  return db.reqs.find(x => x.code === String(code).toUpperCase())
+}
+
+function addDanger(r, text) {
+  r.danger = [...new Set([...(r.danger || []), ...findDanger(text)])]
+}
+
+// 학생한테 보낼 때는 이름 빼고
+function forStudent(r) {
+  return {
+    code: r.code,
+    type: r.type,
+    status: r.status,
+    at: r.at,
+    warnings: r.warnings,
+    locked: r.locked,
+    messages: r.messages.map(m => ({ from: m.from, text: m.text, at: m.at, kind: m.kind || '' })),
+  }
+}
 
 // ======================= 학생 =======================
 const student = makeApp('student')
@@ -73,6 +106,7 @@ student.post('/api/requests', (req, res) => {
   }
 
   const body = text.trim().slice(0, 1000)
+  const now = Date.now()
   const r = {
     code: makeCode(),
     cls,
@@ -82,20 +116,46 @@ student.post('/api/requests', (req, res) => {
     // 직접 도와달라고 한 경우에만 이름 받음
     name: want === 'meet' && typeof name === 'string' ? name.trim().slice(0, 20) : '',
     danger: findDanger(body),
+    messages: [{ from: 'student', text: body, at: now, bad: findBad(body) }],
+    warnings: 0,
+    locked: false,
     status: 'new',
     reply: '',
-    at: Date.now(),
+    at: now,
   }
   db.reqs.push(r)
   save()
   res.json({ code: r.code, danger: r.danger.length > 0 })
 })
 
-// 접수번호로 답장 확인. 이름은 안 돌려줌
+// 접수번호로 대화 보기. 이름은 안 돌려줌
 student.get('/api/requests/:code', (req, res) => {
-  const r = db.reqs.find(x => x.code === req.params.code.toUpperCase())
+  const r = findReq(req.params.code)
   if (!r) return res.status(404).json({ error: '없는 번호' })
-  res.json({ code: r.code, type: r.type, text: r.text, status: r.status, reply: r.reply, at: r.at, repliedAt: r.repliedAt })
+  res.json(forStudent(r))
+})
+
+// 학생이 대화 이어가기
+student.post('/api/requests/:code/messages', (req, res) => {
+  const r = findReq(req.params.code)
+  if (!r) return res.status(404).json({ error: '없는 번호' })
+  if (r.locked) return res.status(403).json({ error: '선생님이 이 대화를 닫았어. 필요하면 새로 이야기를 보내줘.' })
+
+  const text = String(req.body.text || '').trim().slice(0, 500)
+  if (!text) return res.status(400).json({ error: '내용이 비었어' })
+
+  // 장난으로 막 보내는 거 막기
+  const last = r.messages[r.messages.length - 1]
+  if (last.from === 'student' && Date.now() - last.at < 3000) {
+    return res.status(429).json({ error: '조금만 천천히 보내줘' })
+  }
+  if (r.messages.length >= 200) return res.status(400).json({ error: '대화가 너무 길어졌어. 새로 이야기를 보내줘.' })
+
+  r.messages.push({ from: 'student', text, at: Date.now(), bad: findBad(text) })
+  addDanger(r, text)
+  r.status = 'new' // 선생님이 다시 봐야 함
+  save()
+  res.json(forStudent(r))
 })
 
 // ======================= 선생님 =======================
@@ -171,6 +231,20 @@ teacher.get('/api/alerts', (req, res) => {
       })
     })
 
+  // 2-1. 마지막 메시지에 욕이 있음 (누가 한 말 옮긴 걸 수도 있어서 노랑)
+  reqsOf(cls)
+    .filter(r => r.status === 'new' && r.messages)
+    .forEach(r => {
+      const last = r.messages[r.messages.length - 1]
+      if (last.from !== 'student' || !last.bad || !last.bad.length) return
+      alerts.push({
+        level: 'yellow',
+        title: '욕설이 들어간 메시지',
+        msg: `"${last.bad.slice(0, 2).join('", "')}" 같은 말이 있어요. 누가 한 말을 옮긴 건지, 장난인지 확인해 주세요.`,
+        code: r.code,
+      })
+    })
+
   // 3. 3일 연속 힘들다고 한 학생 수 (누군지는 안 알려줌)
   const hardOn = d => new Set(db.moods.filter(m => m.date === d && m.mood >= 4 && (!cls || m.cls === cls)).map(m => m.id))
   const d0 = hardOn(today(0))
@@ -207,6 +281,9 @@ teacher.get('/api/alerts', (req, res) => {
     }
   }
 
+  // 급한 순서대로
+  const order = { red: 0, orange: 1, yellow: 2 }
+  alerts.sort((a, b) => order[a.level] - order[b.level])
   res.json(alerts)
 })
 
@@ -216,19 +293,61 @@ teacher.get('/api/requests', (req, res) => {
 })
 
 teacher.post('/api/requests/:code/reply', (req, res) => {
-  const r = db.reqs.find(x => x.code === req.params.code)
-  const reply = String(req.body.reply || '').trim()
+  const r = findReq(req.params.code)
+  const reply = String(req.body.reply || '').trim().slice(0, 1000)
   if (!r) return res.status(404).json({ error: '없는 번호' })
   if (!reply) return res.status(400).json({ error: '답장이 비었어요' })
-  r.reply = reply.slice(0, 1000)
+  r.messages.push({ from: 'teacher', text: reply, at: Date.now() })
+  r.reply = reply
   r.status = 'replied'
   r.repliedAt = Date.now()
   save()
   res.json({ ok: true })
 })
 
+// 장난이나 욕설이면 경고. 3번 쌓이면 대화 닫음
+function warnText(n) {
+  if (n >= WARN_LIMIT) {
+    return `경고가 ${WARN_LIMIT}번 쌓여서 이 대화는 닫았어요. 진짜 도움이 필요한 일이 생기면 새로 이야기를 보내주세요.`
+  }
+  return `장난이나 욕설이 담긴 메시지는 보내면 안 돼요. 정말 힘든 일이 있으면 있는 그대로 얘기해줘도 괜찮아요. (경고 ${n}/${WARN_LIMIT} · ${WARN_LIMIT}번이면 이 대화는 닫혀요)`
+}
+
+teacher.post('/api/requests/:code/warn', (req, res) => {
+  const r = findReq(req.params.code)
+  if (!r) return res.status(404).json({ error: '없는 번호' })
+  if (r.locked) return res.status(400).json({ error: '이미 닫힌 대화예요' })
+
+  r.warnings += 1
+  const custom = String(req.body.text || '').trim().slice(0, 300)
+  // 선생님이 직접 쓴 말이 있으면 그걸로, 경고 횟수는 뒤에 붙임
+  const text = custom ? `${custom} (경고 ${r.warnings}/${WARN_LIMIT})` : warnText(r.warnings)
+  r.messages.push({ from: 'teacher', kind: 'warn', text, at: Date.now() })
+  r.repliedAt = Date.now()
+  if (r.warnings >= WARN_LIMIT) {
+    r.locked = true
+    r.status = 'done'
+  } else {
+    r.status = 'replied'
+  }
+  save()
+  res.json({ ok: true, warnings: r.warnings, locked: r.locked })
+})
+
+// 잘못 닫았을 때 다시 열기
+teacher.post('/api/requests/:code/unlock', (req, res) => {
+  const r = findReq(req.params.code)
+  if (!r) return res.status(404).json({ error: '없는 번호' })
+  r.locked = false
+  r.warnings = 0
+  r.status = 'replied'
+  r.messages.push({ from: 'teacher', kind: 'info', text: '선생님이 대화를 다시 열었어요.', at: Date.now() })
+  save()
+  res.json({ ok: true })
+})
+
 teacher.post('/api/requests/:code/done', (req, res) => {
-  const r = db.reqs.find(x => x.code === req.params.code)
+  const r = findReq(req.params.code)
   if (!r) return res.status(404).json({ error: '없는 번호' })
   r.status = 'done'
   save()
@@ -250,6 +369,18 @@ const SAMPLE_REQS = [
     want: 'advice',
     name: '',
     text: '반 단톡방에서 제가 말하면 아무도 대답을 안 하고 바로 딴 얘기를 해요. 처음엔 우연인 줄 알았는데 일주일째 계속 그래요. 제가 예민한 건지 모르겠어요.',
+    // 대화 이어진 예시 (몇 시간 전에 보냈는지)
+    chat: [
+      { from: 'teacher', hoursAgo: 3, text: '말해줘서 고마워. 예민한 거 아니야. 일주일이나 그랬으면 많이 신경 쓰였겠다. 혹시 언제부터 그랬는지 기억나?' },
+      { from: 'student', hoursAgo: 2, text: '지난주 수행평가 조 짤 때 제가 한 명이랑 좀 싸웠는데 그 뒤로 그런 것 같아요' },
+    ],
+  },
+  {
+    hoursAgo: 2,
+    type: '기타',
+    want: 'listen',
+    name: '',
+    text: '아 ㅋㅋ 존나 심심하다 선생님 병신 ㅋㅋㅋ',
   },
   {
     hoursAgo: 15,
@@ -286,6 +417,12 @@ teacher.post('/api/seed', (req, res) => {
   }
 
   SAMPLE_REQS.forEach(r => {
+    const at = Date.now() - r.hoursAgo * HOUR
+    const messages = [{ from: 'student', text: r.text, at, bad: findBad(r.text) }]
+    ;(r.chat || []).forEach(c => {
+      messages.push({ from: c.from, text: c.text, at: Date.now() - c.hoursAgo * HOUR, bad: c.from === 'student' ? findBad(c.text) : undefined })
+    })
+    const last = messages[messages.length - 1]
     db.reqs.push({
       type: r.type,
       want: r.want,
@@ -294,9 +431,12 @@ teacher.post('/api/seed', (req, res) => {
       code: makeCode(),
       cls,
       danger: findDanger(r.text),
-      status: 'new',
+      messages,
+      warnings: 0,
+      locked: false,
+      status: last.from === 'teacher' ? 'replied' : 'new',
       reply: '',
-      at: Date.now() - r.hoursAgo * HOUR,
+      at,
       demo: true,
     })
   })

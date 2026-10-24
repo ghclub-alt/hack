@@ -1,0 +1,163 @@
+/* 학생/선생님 공통 */
+* { box-sizing: border-box; }
+
+:root {
+  --bg: #f7f3ea;
+  --paper: #fffdf8;
+  --ink: #23302a;
+  --ink-2: #56615a;
+  --muted: #949c96;
+  --line: #e9e2d4;
+  --line-2: #f1ece2;
+
+  --forest: #1f5a46;
+  --forest-2: #2f7d5b;
+  --mint: #dcefe4;
+  --butter: #fbf0c4;
+  --peach: #fde7d9;
+  --lilac: #e7e4f3;
+  --coral: #ef7d57;
+
+  /* 경고 단계 (빨강 > 주황 > 노랑). 항상 아이콘이랑 같이 씀 */
+  --red: #c8384b;
+  --red-soft: #fbe4e6;
+  --orange: #c9621e;
+  --orange-soft: #fdeadb;
+  --yellow: #9a7400;
+  --yellow-soft: #fbf2cf;
+
+  --r: 18px;
+  --shadow: 0 1px 2px rgba(35, 48, 42, .05), 0 10px 30px -14px rgba(35, 48, 42, .22);
+  --serif: 'Gowun Batang', 'Nanum Myeongjo', serif;
+}
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: 'Pretendard Variable', Pretendard, -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  word-break: keep-all; /* 한글 글자 중간에서 줄 안 바뀌게 */
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3 { margin: 0; letter-spacing: -0.02em; }
+p { margin: 0; }
+a { color: inherit; }
+button { font-family: inherit; color: inherit; }
+[hidden] { display: none !important; }
+
+.ic { flex: none; display: inline-block; vertical-align: -0.2em; }
+
+.hint { color: var(--muted); font-size: 13px; }
+
+/* ----- 버튼 ----- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--forest);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  padding: 11px 18px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform .12s, background .2s, opacity .2s;
+}
+.btn:hover { background: #18493a; }
+.btn:active { transform: scale(.97); }
+.btn:disabled { opacity: .5; pointer-events: none; }
+.btn.small { padding: 7px 13px; font-size: 13px; border-radius: 10px; }
+.btn.big { padding: 15px 20px; font-size: 16px; border-radius: 14px; }
+.btn.full { width: 100%; }
+.btn.line { background: transparent; color: var(--forest); box-shadow: inset 0 0 0 1.5px var(--forest); }
+.btn.line:hover { background: var(--mint); }
+.btn.ghost { background: var(--line-2); color: var(--ink-2); }
+.btn.ghost:hover { background: var(--line); }
+.btn.danger { background: var(--red); }
+.btn.danger:hover { background: #a92c3d; }
+
+/* ----- 입력 ----- */
+textarea, input[type=text], input[type=password], select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 15px;
+  background: #fff;
+  color: var(--ink);
+  transition: border-color .2s, box-shadow .2s;
+}
+textarea { resize: vertical; line-height: 1.6; }
+textarea:focus, input:focus, select:focus {
+  outline: none;
+  border-color: var(--forest-2);
+  box-shadow: 0 0 0 4px rgba(47, 125, 91, .12);
+}
+select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%2356615a' stroke-width='1.6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+  cursor: pointer;
+}
+
+/* ----- 토스트 ----- */
+#toast {
+  position: fixed;
+  left: 50%;
+  bottom: 96px;
+  transform: translate(-50%, 20px);
+  background: var(--ink);
+  color: #fff;
+  padding: 10px 18px;
+  border-radius: 999px;
+  font-size: 14px;
+  opacity: 0;
+  pointer-events: none;
+  transition: .25s;
+  z-index: 100;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* ----- 경고 박스 (공통) ----- */
+.alert {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  font-size: 14px;
+}
+.alert .ic { margin-top: 2px; }
+.alert b { display: block; font-size: 15px; }
+.alert.red { background: var(--red-soft); color: #7d1f2c; }
+.alert.red .ic { color: var(--red); }
+.alert.orange { background: var(--orange-soft); color: #6e3410; }
+.alert.orange .ic { color: var(--orange); }
+.alert.yellow { background: var(--yellow-soft); color: #5a4500; }
+.alert.yellow .ic { color: var(--yellow); }
+
+@keyframes up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(7px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(3px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}

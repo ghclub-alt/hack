@@ -40,6 +40,7 @@ function start() {
   $('login').hidden = true
   $('dash').hidden = false
   refresh()
+  connectEvents()
 }
 
 // 서버 재시작하면 토큰 날아감 → 다시 로그인 화면으로
@@ -48,6 +49,8 @@ function kickOut() {
   $('login').hidden = false
   $('dash').hidden = true
   lastNew = -1
+  if (es) es.close()
+  es = null
 }
 
 $('btnLogout').onclick = kickOut
@@ -64,6 +67,7 @@ $('clsSel').onchange = () => {
   localStorage.setItem('shimpyo_tcls', curCls)
   lastNew = -1
   refresh()
+  connectEvents() // 반 바뀌었으니 다시 연결
 }
 
 function clsName(cls) {
@@ -104,15 +108,35 @@ $('btnRefresh').onclick = async () => {
   toast('새로 불러왔어요')
 }
 
-// 30초마다 알아서 새로고침
+// ---------- 실시간 ----------
+// 학생이 보내면 서버가 바로 알려줌 → 새로고침 안 해도 뜸
+let es = null
+let refreshTimer = null
+
+function refreshSoon() {
+  clearTimeout(refreshTimer)
+  refreshTimer = setTimeout(refresh, 400)
+}
+
+function connectEvents() {
+  if (!window.EventSource) return
+  if (es) es.close()
+  const token = sessionStorage.getItem('shimpyo_token')
+  es = new EventSource(`/api/events?cls=${encodeURIComponent(curCls)}&token=${encodeURIComponent(token)}`)
+  es.addEventListener('req', refreshSoon)
+  es.addEventListener('mood', refreshSoon)
+  es.addEventListener('all', refreshSoon)
+}
+
+// 실시간 연결 안 될 때만 15초마다 (예비)
 setInterval(() => {
-  if (!$('dash').hidden) refresh()
-}, 30000)
+  if (!$('dash').hidden && (!es || es.readyState !== 1)) refresh()
+}, 15000)
 
 // 새 요청 오면 알려주기
 function notifyNew() {
   const n = reqs.filter(r => r.status === 'new').length
-  if (lastNew >= 0 && n > lastNew) toast('새 도움 요청이 왔어요')
+  if (lastNew >= 0 && n > lastNew) toast('학생한테서 새 메시지가 왔어요')
   lastNew = n
   document.title = n ? `(${n}) 쉼표 선생님` : '쉼표 선생님'
 }
@@ -339,7 +363,7 @@ function tMsgHtml(r, m) {
   if (m.kind === 'info') return `<p class="sys">${esc(m.text)}</p>`
   if (m.from === 'teacher') {
     return `<div class="tmsg me ${m.kind === 'warn' ? 'warn' : ''}">
-      <small>${m.kind === 'warn' ? icon('alert', 12) + ' 보낸 경고' : '보낸 답장'} · ${timeAgo(m.at)}</small>
+      <small>${m.kind === 'warn' ? icon('alert', 12) + (m.auto ? ' 자동 경고 (선생님한테 욕)' : ' 보낸 경고') : '보낸 답장'} · ${timeAgo(m.at)}</small>
       <div class="tbubble">${esc(m.text)}</div>
     </div>`
   }

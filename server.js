@@ -7,8 +7,9 @@
 const express = require('express')
 const path = require('path')
 const crypto = require('crypto')
+const { EventEmitter } = require('events')
 const { db, load, save, reset, today, makeCode } = require('./db')
-const { TYPES, findDanger, findBad } = require('./public/shared/data')
+const { TYPES, findDanger, findBad, atTeacherBad } = require('./public/shared/data')
 
 const PORT = Number(process.env.PORT) || 3000
 const TEACHER_PORT = Number(process.env.TEACHER_PORT) || 3001
@@ -67,7 +68,50 @@ function forStudent(r) {
     at: r.at,
     warnings: r.warnings,
     locked: r.locked,
-    messages: r.messages.map(m => ({ from: m.from, text: m.text, at: m.at, kind: m.kind || '' })),
+    messages: r.messages.map(m => ({ from: m.from, text: m.text, at: m.at, kind: m.kind || '', auto: !!m.auto })),
+  }
+}
+
+// ---------- 실시간 (새로고침 안 해도 바로 뜨게) ----------
+// 웹소켓까지는 필요 없어서 SSE(서버 → 화면 한쪽 방향)로 함
+// 뭔가 바뀌면 "바뀌었다"만 알려주고, 화면이 다시 받아감
+const bus = new EventEmitter()
+bus.setMaxListeners(0)
+
+function changed(r) {
+  bus.emit('req', { code: r.code, cls: r.cls })
+}
+
+function openStream(req, res) {
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  })
+  res.flushHeaders()
+  res.write('retry: 3000\n\n')
+  // 중간에 프록시가 끊지 않게 20초마다 빈 신호
+  const ping = setInterval(() => res.write(': ping\n\n'), 20000)
+  req.on('close', () => clearInterval(ping))
+}
+
+function push(res, type, data) {
+  res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)
+}
+
+// 선생님한테 대놓고 욕하면 자동 경고
+function autoWarn(r) {
+  r.warnings += 1
+  const n = r.warnings
+  const text = n >= WARN_LIMIT
+    ? `선생님한테 욕을 해서 자동으로 경고가 쌓였어요. 경고가 ${WARN_LIMIT}번이라 이 대화는 닫혔어요.`
+    : `선생님한테 욕을 하면 안 돼요. 자동으로 경고가 1번 쌓였어요. (경고 ${n}/${WARN_LIMIT} · ${WARN_LIMIT}번이면 이 대화는 닫혀요)`
+  // 학생 메시지 바로 뒤에 오게 1ms 뒤로
+  r.messages.push({ from: 'teacher', kind: 'warn', auto: true, text, at: Date.now() + 1 })
+  if (n >= WARN_LIMIT) {
+    r.locked = true
+    r.status = 'done'
   }
 }
 
@@ -83,6 +127,7 @@ student.post('/api/moods', (req, res) => {
   db.moods = db.moods.filter(m => !(m.id === id && m.date === today()))
   db.moods.push({ id: String(id).slice(0, 40), cls, date: today(), mood })
   save()
+  bus.emit('mood', { cls })
   res.json({ ok: true })
 })
 
@@ -123,9 +168,12 @@ student.post('/api/requests', (req, res) => {
     reply: '',
     at: now,
   }
+  const warned = atTeacherBad(body).length > 0
+  if (warned) autoWarn(r)
   db.reqs.push(r)
   save()
-  res.json({ code: r.code, danger: r.danger.length > 0 })
+  changed(r)
+  res.json({ code: r.code, danger: r.danger.length > 0, warned })
 })
 
 // 접수번호로 대화 보기. 이름은 안 돌려줌
@@ -154,8 +202,26 @@ student.post('/api/requests/:code/messages', (req, res) => {
   r.messages.push({ from: 'student', text, at: Date.now(), bad: findBad(text) })
   addDanger(r, text)
   r.status = 'new' // 선생님이 다시 봐야 함
+  const warned = atTeacherBad(text).length > 0
+  if (warned) autoWarn(r)
   save()
-  res.json(forStudent(r))
+  changed(r)
+  res.json({ ...forStudent(r), warned })
+})
+
+// 내 이야기에 뭐 바뀌면 바로 알려주기 (접수번호 아는 것만)
+student.get('/api/events', (req, res) => {
+  const codes = String(req.query.codes || '').toUpperCase().split(',')
+    .filter(c => /^[A-Z0-9]{4}$/.test(c)).slice(0, 30)
+  openStream(req, res)
+  const onReq = e => { if (codes.includes(e.code)) push(res, 'req', { code: e.code }) }
+  const onAll = () => push(res, 'all', {})
+  bus.on('req', onReq)
+  bus.on('all', onAll)
+  req.on('close', () => {
+    bus.off('req', onReq)
+    bus.off('all', onAll)
+  })
 })
 
 // ======================= 선생님 =======================
@@ -172,7 +238,9 @@ teacher.post('/api/login', (req, res) => {
 })
 
 teacher.use('/api', (req, res, next) => {
-  if (!tokens.has(req.get('x-token'))) return res.status(401).json({ error: '로그인 필요' })
+  // EventSource(실시간)는 헤더를 못 붙여서 ?token= 으로도 받음
+  const t = req.get('x-token') || req.query.token
+  if (!tokens.has(t)) return res.status(401).json({ error: '로그인 필요' })
   next()
 })
 
@@ -287,6 +355,24 @@ teacher.get('/api/alerts', (req, res) => {
   res.json(alerts)
 })
 
+// 학생이 뭐 보내거나 기분 누르면 바로 알려주기
+teacher.get('/api/events', (req, res) => {
+  const cls = req.query.cls || ''
+  openStream(req, res)
+  const mine = e => !cls || e.cls === cls
+  const onReq = e => { if (mine(e)) push(res, 'req', { code: e.code }) }
+  const onMood = e => { if (mine(e)) push(res, 'mood', {}) }
+  const onAll = () => push(res, 'all', {})
+  bus.on('req', onReq)
+  bus.on('mood', onMood)
+  bus.on('all', onAll)
+  req.on('close', () => {
+    bus.off('req', onReq)
+    bus.off('mood', onMood)
+    bus.off('all', onAll)
+  })
+})
+
 teacher.get('/api/requests', (req, res) => {
   const list = reqsOf(req.query.cls).sort((a, b) => b.at - a.at)
   res.json(list)
@@ -302,6 +388,7 @@ teacher.post('/api/requests/:code/reply', (req, res) => {
   r.status = 'replied'
   r.repliedAt = Date.now()
   save()
+  changed(r)
   res.json({ ok: true })
 })
 
@@ -331,6 +418,7 @@ teacher.post('/api/requests/:code/warn', (req, res) => {
     r.status = 'replied'
   }
   save()
+  changed(r)
   res.json({ ok: true, warnings: r.warnings, locked: r.locked })
 })
 
@@ -343,6 +431,7 @@ teacher.post('/api/requests/:code/unlock', (req, res) => {
   r.status = 'replied'
   r.messages.push({ from: 'teacher', kind: 'info', text: '선생님이 대화를 다시 열었어요.', at: Date.now() })
   save()
+  changed(r)
   res.json({ ok: true })
 })
 
@@ -351,6 +440,7 @@ teacher.post('/api/requests/:code/done', (req, res) => {
   if (!r) return res.status(404).json({ error: '없는 번호' })
   r.status = 'done'
   save()
+  changed(r)
   res.json({ ok: true })
 })
 
@@ -442,11 +532,13 @@ teacher.post('/api/seed', (req, res) => {
   })
 
   save()
+  bus.emit('all')
   res.json({ ok: true })
 })
 
 teacher.post('/api/clear', (req, res) => {
   reset()
+  bus.emit('all')
   res.json({ ok: true })
 })
 

@@ -146,6 +146,21 @@ function findBad(text) {
   return [...new Set(hit)]
 }
 
+// 선생님한테 대놓고 욕한 건지 (그러면 자동 경고)
+// "선생님 걔가 저한테 OO이라고 했어요" 처럼 들은 말 옮긴 건 빼려고 '라고, 했어' 같은 말 있으면 넘어감
+// 완벽하진 않음. 애매한 건 선생님이 직접 경고 주기로
+const TEACHER_WORDS = ['선생', '쌤', '샘님', '선상님', '담임', '교사']
+const QUOTE_CUES = ['라고', '래요', '래서', '이래', '했어', '했다', '했는데', '한테', '그랬', '들었', '저보고', '나보고']
+
+function atTeacherBad(text) {
+  const bad = findBad(text)
+  if (!bad.length) return []
+  const flat = String(text).replace(/\s/g, '')
+  if (!TEACHER_WORDS.some(w => flat.includes(w))) return []
+  if (QUOTE_CUES.some(w => flat.includes(w))) return []
+  return bad
+}
+
 if (typeof module !== 'undefined') {
-  module.exports = { MOODS, TYPES, WANT, STATUS, DANGER_WORDS, BAD_WORDS, GUIDE, TIPS, findDanger, findBad }
+  module.exports = { MOODS, TYPES, WANT, STATUS, DANGER_WORDS, BAD_WORDS, GUIDE, TIPS, findDanger, findBad, atTeacherBad }
 }

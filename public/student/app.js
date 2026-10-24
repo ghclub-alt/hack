@@ -22,7 +22,7 @@ function go(name) {
   window.scrollTo(0, 0)
   // 새로고침해도 보던 화면 그대로
   try { sessionStorage.setItem('shimpyo_page', name) } catch (e) {}
-  if (name === 'help') renderMine()
+  if (name === 'help') renderMine({ visit: true })
   else freshShown.clear()
 }
 
@@ -406,7 +406,7 @@ $('helpForm').onsubmit = async e => {
   if (text.length < 5) return toast('조금만 더 적어줄래?')
 
   const bad = findBad(text)
-  if (bad.length && !(await confirmBad(bad))) return $('helpText').focus()
+  if (bad.length && !(await confirmBad(bad, atTeacherBad(text).length > 0))) return $('helpText').focus()
 
   const btn = e.target.querySelector('button[type=submit]')
   btn.disabled = true
@@ -424,6 +424,7 @@ $('helpForm').onsubmit = async e => {
     clearDraft()
 
     showTicket(res.code, res.danger)
+    if (res.warned) toast('선생님한테 욕해서 경고가 1번 쌓였어')
     renderMine()
   } catch (err) {
     toast(err.message)
@@ -463,14 +464,17 @@ function showTicket(code, urgent) {
 
 // ---------- 욕 들어간 글 보내기 전에 한번 ----------
 // 누가 나한테 한 말을 옮겨 적는 걸 수도 있어서 막지는 않고 물어보기만 함
-function confirmBad(words) {
+function confirmBad(words, atTeacher) {
   return new Promise(resolve => {
+    const msg = atTeacher
+      ? '<p><b>선생님한테 욕하면 보내자마자 경고가 1번 쌓여.</b><br>경고 3번이면 이 대화는 닫혀.</p>'
+      : '<p><b>누가 너한테 한 말을 옮겨 적은 거면 그대로 보내도 괜찮아.</b><br>장난이면 선생님한테 경고를 받을 수 있어.</p>'
     $('warnBox').innerHTML = `
       <div class="modal-ic">${icon('alert', 32)}</div>
-      <h3>욕이 들어 있어</h3>
+      <h3>${atTeacher ? '선생님한테 욕하면 경고야' : '욕이 들어 있어'}</h3>
       <p>선생님한테 가는 글이야.</p>
       <div class="quote">${words.map(w => `<mark>${esc(w)}</mark>`).join(', ')}</div>
-      <p><b>누가 너한테 한 말을 옮겨 적은 거면 그대로 보내도 괜찮아.</b><br>장난이면 선생님한테 경고를 받을 수 있어.</p>
+      ${msg}
       <div class="btns">
         <button class="btn go big full" id="badFix">고쳐 쓸게</button>
         <button class="btn ghost full" id="badSend">그대로 보낼게</button>
@@ -522,7 +526,7 @@ function msgHtml(m) {
   if (m.kind === 'warn') {
     return `<div class="msg warn-msg">
       <div class="avatar">${icon('alert', 16)}</div>
-      <div><span class="who">선생님 경고</span><div class="bubble">${esc(m.text)}</div></div>
+      <div><span class="who">${m.auto ? '자동 경고' : '선생님 경고'}</span><div class="bubble">${esc(m.text)}</div></div>
     </div>`
   }
   if (m.from === 'student') {
@@ -565,7 +569,11 @@ function storyHtml(r) {
   </details>`
 }
 
-async function renderMine() {
+let lastList = []
+
+// visit: 학생이 직접 이 화면에 들어온 거면 새 답장 읽은 걸로 침
+// (실시간으로 그냥 다시 그리는 건 학생이 아직 못 봤을 수도 있어서 안 침)
+async function renderMine(opts = {}) {
   if (!me) return
   const box = $('myList')
   if (!me.codes.length) {
@@ -615,17 +623,33 @@ async function renderMine() {
     if (ta && d.dataset.code === focusedCode) ta.focus()
   })
 
-  // 이 화면 보고 있으면 답장 읽은 걸로 (배지는 이번엔 그대로 보여줌)
-  // toggle 이벤트로 하면 open 붙은 채로 그려질 때도 불려서 안 씀
-  if (!$('page-help').hidden) {
-    list.filter(isFresh).forEach(r => {
-      me.seen[r.code] = lastTeacherAt(r)
-      freshShown.add(r.code)
-    })
+  lastList = list
+  // 배지는 이번엔 그대로 보여주고 다음부터 안 보이게
+  if (opts.visit && !$('page-help').hidden) {
+    list.filter(isFresh).forEach(markSeen)
     saveMe()
   }
   updateReplyBox(list)
+  connectEvents()
 }
+
+function markSeen(r) {
+  me.seen[r.code] = lastTeacherAt(r)
+  freshShown.add(r.code)
+}
+
+// 이야기 누르거나 답장 칸 누르면 읽은 걸로
+function seenByTouch(e) {
+  const d = e.target.closest('details.story')
+  if (!d) return
+  const r = lastList.find(x => x.code === d.dataset.code)
+  if (!r || !isFresh(r)) return
+  markSeen(r)
+  saveMe()
+  updateReplyBox(lastList)
+}
+$('myList').addEventListener('click', seenByTouch)
+$('myList').addEventListener('focusin', seenByTouch)
 
 // 홈에 "답장 왔어" 띄우기
 function updateReplyBox(list) {
@@ -655,16 +679,16 @@ $('myList').addEventListener('submit', async e => {
   if (!text) return ta.focus()
 
   const bad = findBad(text)
-  if (bad.length && !(await confirmBad(bad))) return ta.focus()
+  if (bad.length && !(await confirmBad(bad, atTeacherBad(text).length > 0))) return ta.focus()
 
   const btn = form.querySelector('button')
   btn.disabled = true
   try {
-    await api(`/api/requests/${form.dataset.code}/messages`, { body: { text } })
+    const res = await api(`/api/requests/${form.dataset.code}/messages`, { body: { text } })
     setChatDraft(form.dataset.code, '')
     ta.value = ''
     await renderMine()
-    toast('선생님한테 보냈어')
+    toast(res.warned ? '선생님한테 욕해서 경고가 쌓였어' : '선생님한테 보냈어')
   } catch (err) {
     toast(err.message)
   }
@@ -724,5 +748,30 @@ let lastPage = null
 try { lastPage = sessionStorage.getItem('shimpyo_page') } catch (e) {}
 if (lastPage && $('page-' + lastPage)) go(lastPage)
 
-// 선생님 답장 왔는지 1분마다 확인
-setInterval(renderMine, 60000)
+// ---------- 실시간 ----------
+// 선생님이 답장하면 서버가 바로 알려줌 → 새로고침 안 해도 뜸
+let es = null
+let mineTimer = null
+
+function renderMineSoon() {
+  clearTimeout(mineTimer)
+  mineTimer = setTimeout(renderMine, 250)
+}
+
+function connectEvents() {
+  if (!me || !me.codes.length || !window.EventSource) return
+  const key = me.codes.join(',')
+  if (es && es._key === key && es.readyState !== 2) return // 이미 연결됨
+  if (es) es.close()
+  es = new EventSource('/api/events?codes=' + encodeURIComponent(key))
+  es._key = key
+  es.addEventListener('req', renderMineSoon)
+  es.addEventListener('all', renderMineSoon)
+  // 다시 연결되면 그 사이에 온 거 받아오기
+  es.addEventListener('open', renderMineSoon)
+}
+
+// 실시간 연결이 안 될 때만 15초마다 확인 (예비)
+setInterval(() => {
+  if (!es || es.readyState !== 1) renderMine()
+}, 15000)

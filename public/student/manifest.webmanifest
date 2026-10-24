@@ -1,0 +1,17 @@
+{
+  "name": "쉼표, 잠깐 쉬어가도 괜찮아",
+  "short_name": "쉼표",
+  "description": "기분 기록, 말 점검, 선생님한테 몰래 도움 요청하기",
+  "lang": "ko",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f6f2ea",
+  "theme_color": "#f6f2ea",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

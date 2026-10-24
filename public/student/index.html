@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#f6f2ea">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="쉼표">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <title>쉼표, 잠깐 쉬어가도 괜찮아</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,6 +19,11 @@
 </head>
 <body>
   <script src="/shared/icons.js"></script>
+
+  <div class="offline" id="offlineBar" hidden>
+    <svg class="ic" width="16" height="16"><use href="#i-alert"/></svg>
+    인터넷이 끊겼어. 쓰던 글은 폰에 저장돼 있으니까 연결되면 보내줘.
+  </div>
 
   <div class="app">
     <header class="hd">
@@ -73,6 +84,16 @@
             <b>봤을 때</b>
             <span>친구가 괴롭힘 당하는 걸 봤다면</span>
           </button>
+        </div>
+
+        <div class="install" id="installBox" hidden>
+          <img src="icons/icon-192.png" alt="" width="48" height="48">
+          <div class="install-txt">
+            <b>쉼표를 앱으로 설치하기</b>
+            <p id="installMsg">홈 화면에 추가하면 앱처럼 바로 열 수 있어.</p>
+          </div>
+          <button class="btn go small" id="btnInstall">설치</button>
+          <button class="install-x" id="btnInstallX" aria-label="닫기"><svg class="ic" width="16" height="16"><use href="#i-x"/></svg></button>
         </div>
 
         <div class="tip-card">

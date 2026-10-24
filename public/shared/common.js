@@ -5,12 +5,22 @@ async function api(url, opt = {}) {
   const token = sessionStorage.getItem('shimpyo_token')
   if (token) headers['x-token'] = token
 
-  const res = await fetch(url, {
-    method: opt.body ? 'POST' : 'GET',
-    ...opt,
-    headers,
-    body: opt.body ? JSON.stringify(opt.body) : undefined,
-  })
+  let res
+  try {
+    res = await fetch(url, {
+      method: opt.body ? 'POST' : 'GET',
+      ...opt,
+      headers,
+      body: opt.body ? JSON.stringify(opt.body) : undefined,
+    })
+  } catch (e) {
+    // 인터넷 끊기면 fetch 자체가 터짐
+    showOffline(true)
+    const err = new Error('인터넷 연결이 끊겼어요. 연결되면 다시 해주세요.')
+    err.offline = true
+    throw err
+  }
+  showOffline(false)
   const data = await res.json().catch(() => ({}))
   if (!res.ok) {
     const err = new Error(data.error || '서버 오류')
@@ -94,4 +104,104 @@ function toast(msg) {
   el.classList.add('show')
   clearTimeout(el._t)
   el._t = setTimeout(() => el.classList.remove('show'), 2200)
+}
+
+// ---------- 앱으로 설치 (PWA) ----------
+function isStandalone() {
+  return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true
+}
+
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+}
+
+// 위에 "인터넷 끊김" 줄
+// navigator.onLine은 와이파이만 잡혀 있어도 true라서 서버 요청 실패할 때도 띄움
+let offlineTimer = null
+
+function showOffline(on) {
+  const bar = document.getElementById('offlineBar')
+  if (!bar) return false
+  const was = !bar.hidden
+  bar.hidden = !on
+
+  // 끊긴 동안 5초마다 서버 살아났나 확인
+  if (on && !offlineTimer) {
+    offlineTimer = setInterval(async () => {
+      try {
+        const r = await fetch('/api/ping', { cache: 'no-store' })
+        if (r.ok) window.dispatchEvent(new Event('online'))
+      } catch (e) {}
+    }, 5000)
+  }
+  if (!on && offlineTimer) {
+    clearInterval(offlineTimer)
+    offlineTimer = null
+  }
+  return was
+}
+
+// 서비스 워커 등록 + 인터넷 끊기면 위에 표시
+function setupPwa(app, onlineMsg) {
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js?app=' + app).catch(e => console.log('서비스 워커 등록 실패', e))
+    })
+  }
+
+  window.addEventListener('offline', () => showOffline(true))
+  window.addEventListener('online', () => {
+    if (showOffline(false)) toast(onlineMsg)
+  })
+  if (!navigator.onLine) showOffline(true)
+}
+
+// 설치 버튼
+// 안드로이드 크롬은 beforeinstallprompt 이벤트로 바로 설치창 띄울 수 있고
+// 아이폰 사파리는 그런 게 없어서 "공유 → 홈 화면에 추가" 안내만 함
+function setupInstall(o) {
+  const box = document.getElementById(o.box)
+  const btn = document.getElementById(o.btn)
+  if (!box || isStandalone()) return
+
+  try {
+    if (localStorage.getItem(o.key) === '1') return
+  } catch (e) {}
+
+  let deferred = null
+  window.addEventListener('beforeinstallprompt', e => {
+    e.preventDefault()
+    deferred = e
+    box.hidden = false
+  })
+
+  if (isIOS()) {
+    const msg = o.msg && document.getElementById(o.msg)
+    if (msg) {
+      msg.textContent = o.iosMsg
+      btn.hidden = true
+    }
+    box.hidden = false
+  }
+
+  btn.onclick = async () => {
+    if (!deferred) {
+      if (isIOS()) alert(o.iosMsg)
+      return
+    }
+    deferred.prompt()
+    const { outcome } = await deferred.userChoice
+    deferred = null
+    if (outcome === 'accepted') box.hidden = true
+  }
+
+  if (o.close) {
+    document.getElementById(o.close).onclick = () => {
+      box.hidden = true
+      try { localStorage.setItem(o.key, '1') } catch (e) {}
+    }
+  }
+
+  window.addEventListener('appinstalled', () => { box.hidden = true })
 }

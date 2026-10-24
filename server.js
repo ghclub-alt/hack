@@ -24,6 +24,13 @@ function okCls(cls) {
 function makeApp(folder) {
   const app = express()
   app.use(express.json({ limit: '20kb' }))
+  // 인터넷 다시 연결됐나 확인용 (로그인 필요 없음)
+  app.get('/api/ping', (req, res) => res.json({ ok: true }))
+  // 서비스 워커는 맨 위 주소에 있어야 전체 화면을 맡을 수 있음
+  app.get('/sw.js', (req, res) => {
+    res.set('Cache-Control', 'no-cache')
+    res.sendFile(path.join(__dirname, 'public/shared/sw.js'))
+  })
   app.use('/shared', express.static(path.join(__dirname, 'public/shared')))
   app.use(express.static(path.join(__dirname, 'public', folder)))
   return app

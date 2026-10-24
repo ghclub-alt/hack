@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>쉼표 선생님</title>
+  <meta name="theme-color" content="#26302b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="쉼표 선생님">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
@@ -12,6 +18,11 @@
 </head>
 <body>
   <script src="/shared/icons.js"></script>
+
+  <div class="offline" id="offlineBar" hidden>
+    <svg class="ic" width="16" height="16"><use href="#i-alert"/></svg>
+    인터넷 연결이 끊겼어요. 다시 연결되면 자동으로 새로고침돼요.
+  </div>
 
   <!-- ============ 로그인 ============ -->
   <div class="login" id="login">
@@ -54,6 +65,7 @@
       </nav>
 
       <div class="side-foot">
+        <button id="btnInstallT" hidden><svg class="ic" width="16" height="16"><use href="#i-phone"/></svg> 앱으로 설치</button>
         <p class="side-label">시연 도구</p>
         <button id="btnSeed"><svg class="ic" width="16" height="16"><use href="#i-sparkle"/></svg> 시연용 데이터 넣기</button>
         <button id="btnClear"><svg class="ic" width="16" height="16"><use href="#i-x"/></svg> 전부 지우기</button>

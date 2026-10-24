@@ -296,3 +296,5 @@ section { scroll-margin-top: 20px; }
   .main { padding: 20px 14px 50px; }
   .when { margin-left: 0; width: 100%; }
 }
+
+#btnInstallT { color: var(--forest); font-weight: 700; }

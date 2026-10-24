@@ -748,3 +748,28 @@ mark {
 .find { margin-top: 14px; }
 .find summary { cursor: pointer; font-size: 14px; color: var(--ink-2); margin-bottom: 8px; }
 .find .hint { margin-top: 6px; }
+
+/* ----- 앱 설치 ----- */
+.install {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border: var(--line);
+  border-radius: 16px;
+  box-shadow: 3px 3px 0 var(--ink);
+  padding: 12px 10px 12px 12px;
+  margin-bottom: 22px;
+  animation: up .3s ease both;
+}
+.install img { border-radius: 12px; border: var(--line); flex: none; }
+.install-txt { flex: 1; min-width: 0; line-height: 1.4; }
+.install-txt b { font-size: 15px; }
+.install-txt p { font-size: 13px; color: var(--ink-2); margin-top: 2px; }
+.install .btn { flex: none; }
+.install-x { flex: none; background: none; border: none; padding: 4px; color: var(--muted); cursor: pointer; }
+
+/* 앱으로 열었을 때 (주소창 없음) 위쪽 노치 피하기 */
+@media (display-mode: standalone) {
+  .hd { padding-top: calc(12px + env(safe-area-inset-top)); }
+}

@@ -182,3 +182,21 @@ select {
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* ----- 인터넷 끊김 ----- */
+/* 위에 고정하면 SOS 버튼 가려서 그냥 맨 위에만 둠 */
+.offline {
+  position: relative;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 13px;
+  padding: 7px 14px;
+  padding-top: calc(7px + env(safe-area-inset-top));
+  text-align: center;
+}
+.offline .ic { color: var(--butter); }

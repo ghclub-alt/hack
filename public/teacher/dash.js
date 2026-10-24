@@ -452,4 +452,17 @@ $('btnClear').onclick = async () => {
   refresh()
 }
 
+// ---------- 앱 설치 ----------
+setupPwa('teacher', '다시 연결됐어요')
+setupInstall({
+  box: 'btnInstallT',
+  btn: 'btnInstallT',
+  key: 'shimpyo_t_install_no',
+  iosMsg: '사파리 아래 공유 버튼(□↑) → "홈 화면에 추가"를 누르면 앱처럼 쓸 수 있어요.',
+})
+
+window.addEventListener('online', () => {
+  if (!$('dash').hidden) refresh()
+})
+
 if (sessionStorage.getItem('shimpyo_token')) start()

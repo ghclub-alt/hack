@@ -573,6 +573,20 @@ $('guideList').innerHTML = GUIDE.map((g, i) => `
     <ol>${g.items.map(t => `<li>${t}</li>`).join('')}</ol>
   </details>`).join('')
 
+// ---------- 앱 설치 ----------
+setupPwa('student', '다시 연결됐어')
+setupInstall({
+  box: 'installBox',
+  btn: 'btnInstall',
+  msg: 'installMsg',
+  close: 'btnInstallX',
+  key: 'shimpyo_install_no',
+  iosMsg: '아래 공유 버튼(□↑) 누르고 "홈 화면에 추가" 누르면 돼.',
+})
+
+// 다시 연결되면 답장 왔는지 바로 확인
+window.addEventListener('online', renderMine)
+
 // ---------- 시작 ----------
 if (!me) $('welcome').hidden = false
 renderHome()

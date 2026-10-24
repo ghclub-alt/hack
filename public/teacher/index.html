@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>쉼표 선생님</title>
+  <meta name="theme-color" content="#26302b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="쉼표 선생님">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/shared/base.css">
+  <link rel="stylesheet" href="dash.css">
+</head>
+<body>
+  <script src="/shared/icons.js"></script>
+
+  <div class="offline" id="offlineBar" hidden>
+    <svg class="ic" width="16" height="16"><use href="#i-alert"/></svg>
+    인터넷 연결이 끊겼어요. 다시 연결되면 자동으로 새로고침돼요.
+  </div>
+
+  <!-- ============ 로그인 ============ -->
+  <div class="login" id="login">
+    <div class="login-in">
+      <small class="hand-label">선생님 화면</small>
+      <div class="brand-lg">쉼표<span>,</span></div>
+      <p class="login-copy">학생들이 먼저 말하지 않아도 알아챌 수 있게.</p>
+
+      <form class="login-form" id="loginForm">
+        <div class="art-faces" id="artFaces"></div>
+        <h2>선생님 확인</h2>
+        <p class="hint">학교에서 받은 PIN을 넣어주세요</p>
+        <input type="password" id="pin" placeholder="PIN" inputmode="numeric" autocomplete="off">
+        <button class="btn go big full" type="submit">들어가기</button>
+        <p class="err" id="loginErr"></p>
+      </form>
+
+      <div class="three">
+        <div><b><svg class="ic" width="17" height="17"><use href="#i-lock"/></svg> 이름은</b>학생이 원할 때만 보여요</div>
+        <div><b><svg class="ic" width="17" height="17"><use href="#i-chart"/></svg> 기분은</b>반 전체 숫자로만 봐요</div>
+        <div><b><svg class="ic" width="17" height="17"><use href="#i-bell"/></svg> 위험 신호는</b>바로 알려드려요</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ 대시보드 ============ -->
+  <div class="dash" id="dash" hidden>
+    <aside class="side">
+      <div class="side-brand">쉼표<span>,</span> <small>선생님</small></div>
+
+      <div class="ai-state" id="aiState"></div>
+
+      <div class="side-cls">
+        <label class="side-label" for="clsSel">반</label>
+        <select id="clsSel"></select>
+      </div>
+
+      <nav class="side-nav">
+        <a href="#sec-alerts"><svg class="ic" width="18" height="18"><use href="#i-bell"/></svg> 알림 <span class="cnt red" id="navAlerts"></span></a>
+        <a href="#sec-mood"><svg class="ic" width="18" height="18"><use href="#i-chart"/></svg> 마음 날씨</a>
+        <a href="#sec-reqs"><svg class="ic" width="18" height="18"><use href="#i-inbox"/></svg> 도움 요청 <span class="cnt" id="navReqs"></span></a>
+      </nav>
+
+      <div class="side-foot">
+        <button id="btnInstallT" hidden><svg class="ic" width="16" height="16"><use href="#i-phone"/></svg> 앱으로 설치</button>
+        <p class="side-label">시연 도구</p>
+        <button id="btnSeed"><svg class="ic" width="16" height="16"><use href="#i-sparkle"/></svg> 시연용 데이터 넣기</button>
+        <button id="btnClear"><svg class="ic" width="16" height="16"><use href="#i-x"/></svg> 전부 지우기</button>
+        <button id="btnLogout"><svg class="ic" width="16" height="16"><use href="#i-out"/></svg> 나가기</button>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="main-hd">
+        <div>
+          <p class="crumb" id="crumb"></p>
+          <h1 id="clsTitle"></h1>
+        </div>
+        <button class="btn yellow small" id="btnRefresh"><svg class="ic" width="16" height="16"><use href="#i-refresh"/></svg> 새로고침</button>
+      </header>
+
+      <section id="sec-alerts"></section>
+
+      <section class="kpis" id="kpis"></section>
+
+      <section class="grid2" id="sec-mood">
+        <div class="panel">
+          <div class="panel-hd">
+            <h2>요일별 마음 날씨</h2>
+            <span class="hint"><svg class="ic" width="13" height="13"><use href="#i-lock"/></svg> 누가 눌렀는지는 안 보여요</span>
+          </div>
+          <div class="legend" id="legend"></div>
+          <div class="chart" id="dayChart"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-hd"><h2>이번 주 전체</h2></div>
+          <div id="weekBar"></div>
+          <table class="mood-table" id="moodTable"></table>
+        </div>
+      </section>
+
+      <section class="panel" id="sec-reqs">
+        <div class="panel-hd">
+          <h2>도움 요청</h2>
+          <div class="seg" id="filters">
+            <button data-f="all" class="on">전체</button>
+            <button data-f="new">새로 온 것</button>
+            <button data-f="replied">답장함</button>
+            <button data-f="done">마무리</button>
+          </div>
+        </div>
+        <div id="reqList"></div>
+      </section>
+    </main>
+  </div>
+
+  <div class="chart-tip" id="chartTip" hidden></div>
+
+  <script src="/shared/data.js"></script>
+  <script src="/shared/common.js"></script>
+  <script src="dash.js"></script>
+</body>
+</html>

@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f6f2ea">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="쉼표">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <title>쉼표, 잠깐 쉬어가도 괜찮아</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/shared/base.css">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <script src="/shared/icons.js"></script>
+
+  <div class="offline" id="offlineBar" hidden>
+    <svg class="ic" width="16" height="16"><use href="#i-alert"/></svg>
+    인터넷이 끊겼어. 쓰던 글은 폰에 저장돼 있으니까 연결되면 보내줘.
+  </div>
+
+  <div class="app">
+    <header class="hd">
+      <div class="brand">쉼표<span>,</span></div>
+      <button class="cls-chip" id="clsChip" title="반 바꾸기"></button>
+    </header>
+
+    <main>
+      <!-- ============ 홈 ============ -->
+      <section class="page" id="page-home">
+        <div class="hello">
+          <p class="date" id="todayText"></p>
+          <h1 id="helloText">안녕</h1>
+        </div>
+
+        <div class="card mood-card">
+          <div class="card-hd">
+            <h2>오늘 마음 날씨는?</h2>
+            <span class="pill"><svg class="ic" width="13" height="13"><use href="#i-lock"/></svg> 익명</span>
+          </div>
+          <div class="moods" id="moods"></div>
+          <p class="mood-reply" id="moodMsg"></p>
+          <div class="week" id="week"></div>
+        </div>
+
+        <div class="care reply-alert" id="replyBox" hidden>
+          <div class="care-ic"><svg class="ic" width="22" height="22"><use href="#i-chat"/></svg></div>
+          <div>
+            <b>선생님한테 답장이 왔어</b>
+            <p id="replyText">내가 보낸 이야기에 답장이 왔어. 확인해볼래?</p>
+            <button class="btn go small" data-go="help">답장 보기</button>
+          </div>
+        </div>
+
+        <div class="care" id="careBox" hidden>
+          <div class="care-ic"><svg class="ic" width="22" height="22"><use href="#i-heart"/></svg></div>
+          <div>
+            <b>요즘 힘든 날이 계속 있었네</b>
+            <p>혼자 버티지 않아도 돼. 이름 안 쓰고 선생님한테 말할 수 있어.</p>
+            <button class="btn go small" data-go="help">얘기하러 가기</button>
+          </div>
+        </div>
+
+        <div class="tiles">
+          <button class="tile t-check" data-go="check">
+            <span class="tile-ic"><svg class="ic" width="22" height="22"><use href="#i-chat"/></svg></span>
+            <b>말 점검</b>
+            <span>단톡방에 보내기 전에 한번 더</span>
+          </button>
+          <button class="tile t-help" data-go="help">
+            <span class="tile-ic"><svg class="ic" width="22" height="22"><use href="#i-heart"/></svg></span>
+            <b>도움 요청</b>
+            <span>선생님한테 몰래 말하기</span>
+          </button>
+          <button class="tile t-guide" data-go="guide">
+            <span class="tile-ic"><svg class="ic" width="22" height="22"><use href="#i-eye"/></svg></span>
+            <b>봤을 때</b>
+            <span>친구가 괴롭힘 당하는 걸 봤다면</span>
+          </button>
+        </div>
+
+        <div class="install" id="installBox" hidden>
+          <img src="icons/icon-192.png" alt="" width="48" height="48">
+          <div class="install-txt">
+            <b>쉼표를 앱으로 설치하기</b>
+            <p id="installMsg">홈 화면에 추가하면 앱처럼 바로 열 수 있어.</p>
+          </div>
+          <button class="btn go small" id="btnInstall">설치</button>
+          <button class="install-x" id="btnInstallX" aria-label="닫기"><svg class="ic" width="16" height="16"><use href="#i-x"/></svg></button>
+        </div>
+
+        <div class="tip-card">
+          <span class="tip-label"><svg class="ic" width="14" height="14"><use href="#i-sparkle"/></svg> 오늘의 한마디</span>
+          <p id="tipText"></p>
+        </div>
+      </section>
+
+      <!-- ============ 말 점검 ============ -->
+      <section class="page" id="page-check" hidden>
+        <div class="page-hd">
+          <h1>보내기 전에 한번 더</h1>
+          <p id="checkNote">단톡방이나 DM에 보내려는 말을 넣어봐. 이건 서버로 안 가고 내 폰에서만 확인해.</p>
+        </div>
+
+        <div class="card composer">
+          <textarea id="msgInput" rows="3" placeholder="보내려는 메시지를 적어봐"></textarea>
+          <div class="examples" id="examples"></div>
+          <button class="btn go big full" id="btnCheck">
+            <svg class="ic" width="18" height="18"><use href="#i-send"/></svg> 확인해보기
+          </button>
+        </div>
+
+        <div id="checkResult"></div>
+      </section>
+
+      <!-- ============ 도움 요청 ============ -->
+      <section class="page" id="page-help" hidden>
+        <div class="page-hd">
+          <h1>도움 요청하기</h1>
+          <p><svg class="ic" width="14" height="14"><use href="#i-lock"/></svg> 이름 안 써도 돼. 선생님은 반이랑 내용만 볼 수 있어.</p>
+          <p class="ai-hint" id="aiHint" hidden><svg class="ic" width="14" height="14"><use href="#i-sparkle"/></svg> 위험한 말이나 욕은 AI(ChatGPT)가 같이 확인해. 이름은 안 보내.</p>
+        </div>
+
+        <form id="helpForm">
+          <div class="draft-note" id="draftNote" hidden>
+            <svg class="ic" width="16" height="16"><use href="#i-check"/></svg>
+            <span>쓰던 거 임시 저장돼 있어. 새로고침해도 안 날아가.</span>
+            <button type="button" id="btnDraftClear">지우기</button>
+          </div>
+
+          <div class="card step">
+            <div class="step-no">1</div>
+            <div class="step-body">
+              <h3>어떤 일이야?</h3>
+              <div class="chips" id="typeChips"></div>
+            </div>
+          </div>
+
+          <div class="card step">
+            <div class="step-no">2</div>
+            <div class="step-body">
+              <h3>무슨 일인지 편하게 적어줘</h3>
+              <textarea id="helpText" rows="5" maxlength="1000" placeholder="언제, 어디서, 어떤 일이 있었는지 생각나는 만큼만 적어도 돼"></textarea>
+              <div class="counter"><span id="cnt">0</span> / 1000</div>
+
+              <div class="danger-inline" id="dangerInline" hidden>
+                <div class="danger-hd">
+                  <svg class="ic" width="18" height="18"><use href="#i-alert"/></svg>
+                  <b>혹시 지금 위험한 상황이야?</b>
+                </div>
+                <p>그렇다면 기다리지 말고 바로 연락해. 이 글도 그대로 보내도 되고, 선생님한테 <b>급함</b>으로 표시돼.</p>
+                <div class="danger-btns">
+                  <a href="tel:112">112 긴급</a>
+                  <a href="tel:117">117 학교폭력</a>
+                  <a href="tel:109">109 상담</a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card step">
+            <div class="step-no">3</div>
+            <div class="step-body">
+              <h3>어떻게 해줬으면 좋겠어?</h3>
+              <div class="wants">
+                <label class="want">
+                  <input type="radio" name="want" value="listen" checked>
+                  <span class="want-ic"><svg class="ic" width="20" height="20"><use href="#i-ear"/></svg></span>
+                  <span class="want-txt"><b>그냥 들어주세요</b><small>답장만 해줘도 돼요</small></span>
+                </label>
+                <label class="want">
+                  <input type="radio" name="want" value="advice">
+                  <span class="want-ic"><svg class="ic" width="20" height="20"><use href="#i-compass"/></svg></span>
+                  <span class="want-txt"><b>어떻게 하면 좋을지 알려주세요</b><small>조언이 필요해요</small></span>
+                </label>
+                <label class="want">
+                  <input type="radio" name="want" value="meet">
+                  <span class="want-ic"><svg class="ic" width="20" height="20"><use href="#i-user"/></svg></span>
+                  <span class="want-txt"><b>선생님이 직접 도와주세요</b><small>이름을 남기면 찾아가요</small></span>
+                </label>
+              </div>
+
+              <div id="nameWrap" hidden>
+                <input type="text" id="helpName" placeholder="이름 (선택)" maxlength="20">
+                <p class="hint">이름은 선생님만 봐. 안 쓰고 보내도 돼.</p>
+              </div>
+            </div>
+          </div>
+
+          <button class="btn go big full" type="submit">
+            <svg class="ic" width="18" height="18"><use href="#i-send"/></svg> 선생님한테 보내기
+          </button>
+        </form>
+
+        <div id="helpDone" hidden></div>
+
+        <div class="card">
+          <h3 class="sec-title">내가 보낸 이야기</h3>
+          <div id="myList"></div>
+
+          <details class="find">
+            <summary>다른 폰에서 보냈으면 접수번호로 찾기</summary>
+            <div class="code-row">
+              <input type="text" id="codeInput" placeholder="접수번호 4자리" maxlength="4" autocomplete="off">
+              <button class="btn ok" id="btnFind">찾기</button>
+            </div>
+            <p class="hint" id="findMsg"></p>
+          </details>
+        </div>
+      </section>
+
+      <!-- ============ 봤을 때 ============ -->
+      <section class="page" id="page-guide" hidden>
+        <div class="page-hd">
+          <h1>이럴 땐 이렇게</h1>
+          <p>정답은 없어. 내가 할 수 있는 것부터 하나만.</p>
+        </div>
+        <div id="guideList"></div>
+      </section>
+    </main>
+
+    <nav class="tabbar">
+      <button class="tab-btn on" data-page="home">
+        <svg class="ic" width="22" height="22"><use href="#i-home"/></svg><span>홈</span>
+      </button>
+      <button class="tab-btn" data-page="check">
+        <svg class="ic" width="22" height="22"><use href="#i-chat"/></svg><span>말 점검</span>
+      </button>
+      <button class="tab-btn" data-page="help">
+        <svg class="ic" width="22" height="22"><use href="#i-heart"/></svg><span>도움 요청</span>
+      </button>
+      <button class="tab-btn" data-page="guide">
+        <svg class="ic" width="22" height="22"><use href="#i-eye"/></svg><span>봤을 때</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- 처음 왔을 때 -->
+  <div class="welcome" id="welcome" hidden>
+    <div class="welcome-in">
+      <small>우리 학교 마음 쉼터</small>
+      <div class="big-brand">쉼표<span>,</span></div>
+      <p class="welcome-sub">잠깐 쉬어가도 괜찮아</p>
+
+      <div class="card tape welcome-box">
+      <div class="welcome-faces" id="welcomeFaces"></div>
+
+      <ul class="promise">
+        <li><svg class="ic" width="18" height="18"><use href="#i-lock"/></svg> 이름은 안 받아. 반만 알려줘.</li>
+        <li><svg class="ic" width="18" height="18"><use href="#i-heart"/></svg> 힘들 때 선생님한테 몰래 말할 수 있어.</li>
+        <li><svg class="ic" width="18" height="18"><use href="#i-chat"/></svg> 단톡방에 보내기 전에 한번 더 볼 수 있어.</li>
+      </ul>
+
+      <div class="pick">
+        <select id="selGrade"></select>
+        <select id="selClass"></select>
+      </div>
+      <button class="btn go big full" id="btnSetup">시작!</button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 경고창 -->
+  <div class="modal-bg" id="warnModal" hidden>
+    <div class="modal" id="warnBox"></div>
+  </div>
+
+  <script src="/shared/data.js"></script>
+  <script src="/shared/common.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

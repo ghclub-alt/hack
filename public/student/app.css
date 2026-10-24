@@ -779,3 +779,8 @@ mark {
 .ai-better { margin-top: 10px; background: #fff; border: var(--line); border-radius: 12px; padding: 10px 12px; }
 .ai-better small { color: var(--ink-2); font-size: 12.5px; }
 .ai-better p { font-size: 15.5px; margin: 2px 0 8px; }
+
+/* 보내기 전 검수 */
+.chat-form .btn.busy { opacity: .6; }
+.ai-why-line { font-size: 13.5px; color: var(--forest) !important; margin: -4px 0 10px; display: flex; gap: 4px; align-items: center; justify-content: center; }
+.modal-sos { margin: 14px 0 4px; }

@@ -24,7 +24,7 @@ const ai = require('./ai')
 const crypto = require('crypto')
 const { EventEmitter } = require('events')
 const { db, load, save, reset, today, makeCode } = require('./db')
-const { TYPES, findDanger, findBad, atTeacherBad } = require('./public/shared/data')
+const { TYPES, findDanger, findBad, isQuoted, atTeacherBad } = require('./public/shared/data')
 
 const PORT = Number(process.env.PORT) || 3000
 const TEACHER_PORT = Number(process.env.TEACHER_PORT) || 3001
@@ -120,11 +120,15 @@ function push(res, type, data) {
 async function review(text) {
   const v = await ai.judge(text)
   if (v) return { by: 'ai', ...v }
+  return reviewWords(text)
+}
+
+function reviewWords(text) {
   return {
     by: 'words',
     insultTeacher: atTeacherBad(text).length > 0,
     profanity: findBad(text).length > 0,
-    quoted: false,
+    quoted: isQuoted(text),
     danger: findDanger(text).length > 0,
     prank: false,
     reason: '',
@@ -141,15 +145,21 @@ function badOf(text, v) {
   return v.by === 'ai' && !v.profanity ? [] : findBad(text)
 }
 
-// 선생님한테 대놓고 욕하면 자동 경고
-function autoWarn(r) {
+// 바로 경고 줄지: 학생이 직접 쓴 욕이면 (누가 한 말 옮긴 건 빼고)
+function shouldWarn(v) {
+  return v.insultTeacher || (v.profanity && !v.quoted)
+}
+
+// 욕 쓰면 자동 경고
+function autoWarn(r, v) {
   r.warnings += 1
   const n = r.warnings
+  const what = v.insultTeacher ? '선생님한테 욕을' : '욕을'
   const text = n >= WARN_LIMIT
-    ? `선생님한테 욕을 해서 자동으로 경고가 쌓였어요. 경고가 ${WARN_LIMIT}번이라 이 대화는 닫혔어요.`
-    : `선생님한테 욕을 하면 안 돼요. 자동으로 경고가 1번 쌓였어요. (경고 ${n}/${WARN_LIMIT} · ${WARN_LIMIT}번이면 이 대화는 닫혀요)`
+    ? `${what} 써서 자동으로 경고가 쌓였어요. 경고가 ${WARN_LIMIT}번이라 이 대화는 닫혔어요.`
+    : `${what} 쓰면 안 돼요. 자동으로 경고가 1번 쌓였어요. (경고 ${n}/${WARN_LIMIT} · ${WARN_LIMIT}번이면 이 대화는 닫혀요)`
   // 학생 메시지 바로 뒤에 오게 1ms 뒤로
-  r.messages.push({ from: 'teacher', kind: 'warn', auto: true, text, at: Date.now() + 1 })
+  r.messages.push({ from: 'teacher', kind: 'warn', auto: v.insultTeacher ? 'teacher' : 'swear', text, at: Date.now() + 1 })
   if (n >= WARN_LIMIT) {
     r.locked = true
     r.status = 'done'
@@ -211,8 +221,8 @@ student.post('/api/requests', async (req, res) => {
     reply: '',
     at: now,
   }
-  const warned = v.insultTeacher
-  if (warned) autoWarn(r)
+  const warned = shouldWarn(v)
+  if (warned) autoWarn(r, v)
   db.reqs.push(r)
   save()
   changed(r)
@@ -252,26 +262,40 @@ student.post('/api/requests/:code/messages', async (req, res) => {
   m.check = checkOf(v)
   addDanger(r, text)
   if (v.by === 'ai' && v.danger) r.aiDanger = v.reason || 'AI가 위험 신호를 찾았어요'
-  const warned = v.insultTeacher && !r.locked
-  if (warned) autoWarn(r)
+  const warned = shouldWarn(v) && !r.locked
+  if (warned) autoWarn(r, v)
   save()
   changed(r)
   res.json({ ...forStudent(r), warned, danger: findDanger(text).length > 0 || (v.by === 'ai' && v.danger) })
 })
 
-// 말 점검을 ChatGPT로 (키 있을 때만). 저장은 안 하고 결과만 돌려줌
+// 한 사람이 AI 너무 많이 못 쓰게 (1분에 20번, 돈 나가니까)
 const checkHits = new Map()
+function tooMany(req) {
+  const now = Date.now()
+  const hits = (checkHits.get(req.ip) || []).filter(t => now - t < 60000)
+  if (hits.length >= 20) return true
+  hits.push(now)
+  checkHits.set(req.ip, hits)
+  return false
+}
+
+// 도움 요청/답장 보내기 전에 검수 (AI 있으면 AI, 없으면 단어 목록). 저장 안 함
+// 같은 글로 보내면 AI 결과 캐시돼 있어서 두 번 돈 안 나감
+student.post('/api/review', async (req, res) => {
+  const text = String(req.body.text || '').trim().slice(0, 1000)
+  if (!text) return res.status(400).json({ error: '내용이 비었어' })
+  const useAi = ai.enabled() && !tooMany(req)
+  const v = useAi ? await review(text) : await reviewWords(text)
+  res.json({ ...v, words: badOf(text, v), warn: shouldWarn(v) })
+})
+
+// 말 점검을 ChatGPT로 (키 있을 때만). 저장은 안 하고 결과만 돌려줌
 student.post('/api/check', async (req, res) => {
   if (!ai.enabled()) return res.status(404).json({ error: 'AI 꺼져 있음' })
   const text = String(req.body.text || '').trim().slice(0, 500)
   if (!text) return res.status(400).json({ error: '내용이 비었어' })
-
-  // 한 사람이 너무 많이 못 쓰게 (1분에 20번, 돈 나가니까)
-  const now = Date.now()
-  const hits = (checkHits.get(req.ip) || []).filter(t => now - t < 60000)
-  if (hits.length >= 20) return res.status(429).json({ error: '잠깐 쉬었다가 해줘' })
-  hits.push(now)
-  checkHits.set(req.ip, hits)
+  if (tooMany(req)) return res.status(429).json({ error: '잠깐 쉬었다가 해줘' })
 
   const c = await ai.coach(text)
   if (!c) return res.status(503).json({ error: 'AI가 지금 대답을 안 해' })

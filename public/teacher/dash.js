@@ -380,7 +380,7 @@ function tMsgHtml(r, m) {
   if (m.kind === 'info') return `<p class="sys">${esc(m.text)}</p>`
   if (m.from === 'teacher') {
     return `<div class="tmsg me ${m.kind === 'warn' ? 'warn' : ''}">
-      <small>${m.kind === 'warn' ? icon('alert', 12) + (m.auto ? ' 자동 경고 (선생님한테 욕)' : ' 보낸 경고') : '보낸 답장'} · ${timeAgo(m.at)}</small>
+      <small>${m.kind === 'warn' ? icon('alert', 12) + (m.auto ? (m.auto === 'swear' ? ' 자동 경고 (욕설)' : ' 자동 경고 (선생님한테 욕)') : ' 보낸 경고') : '보낸 답장'} · ${timeAgo(m.at)}</small>
       <div class="tbubble">${esc(m.text)}</div>
     </div>`
   }

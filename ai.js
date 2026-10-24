@@ -87,7 +87,9 @@ const JUDGE_PROMPT = `너는 학교 상담 앱 "쉼표"에서 학생이 선생�
 }
 
 판단할 때:
-- 괴롭힘 당한 학생이 들은 욕을 그대로 적는 경우가 많아. 이건 insult_teacher가 아니야.
+- 괴롭힘 당한 학생이 들은 욕을 그대로 적는 경우가 많아. 이건 insult_teacher가 아니고 quoted는 true야.
+- "죽어라 공부했다", "웃겨 죽어" 같은 말버릇은 욕이 아니야 (profanity false).
+- 학생이 직접 쓴 욕이면 상대가 누구든 profanity true, quoted false.
 - 애매하면 insult_teacher는 false로. 학생이 억울하게 경고 받으면 안 돼.
 - danger는 조금이라도 걱정되면 true로. 놓치는 게 더 위험해.`
 

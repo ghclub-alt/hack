@@ -139,9 +139,12 @@ function findDanger(text) {
   return DANGER_WORDS.filter(w => flat.includes(w.replace(/\s/g, '')))
 }
 
+// 욕 아닌데 걸리는 말버릇은 빼고 봄 ("죽어라 공부했다", "웃겨 죽어")
+const SAFE_PHRASES = /(죽어라|웃겨죽어|배고파죽어|좋아죽어|귀여워죽어|졸려죽어|더워죽어|추워죽어|죽을뻔)/g
+
 // 욕/상처 주는 말 찾기. 말 점검이랑 대화방 경고에 씀
 function findBad(text) {
-  const flat = String(text).replace(/\s/g, '')
+  const flat = String(text).replace(/\s/g, '').replace(SAFE_PHRASES, '')
   const hit = BAD_WORDS.filter(b => flat.includes(b.word.replace(/\s/g, ''))).map(b => b.word)
   return [...new Set(hit)]
 }
@@ -151,6 +154,19 @@ function findBad(text) {
 // 완벽하진 않음. 애매한 건 선생님이 직접 경고 주기로
 const TEACHER_WORDS = ['선생', '쌤', '샘님', '선상님', '담임', '교사']
 const QUOTE_CUES = ['라고', '래요', '래서', '이래', '했어', '했다', '했는데', '한테', '그랬', '들었', '저보고', '나보고']
+
+// 들은 말을 옮긴 건지 ("라고 했어요" 같은 말 있으면)
+function isQuoted(text) {
+  const flat = String(text).replace(/\s/g, '')
+  return QUOTE_CUES.some(w => flat.includes(w))
+}
+
+// 학생이 직접 쓴 욕 (옮긴 말 빼고) → 바로 경고
+function selfBad(text) {
+  const bad = findBad(text)
+  if (!bad.length || isQuoted(text)) return []
+  return bad
+}
 
 function atTeacherBad(text) {
   const bad = findBad(text)
@@ -162,5 +178,5 @@ function atTeacherBad(text) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { MOODS, TYPES, WANT, STATUS, DANGER_WORDS, BAD_WORDS, GUIDE, TIPS, findDanger, findBad, atTeacherBad }
+  module.exports = { MOODS, TYPES, WANT, STATUS, DANGER_WORDS, BAD_WORDS, GUIDE, TIPS, findDanger, findBad, isQuoted, selfBad, atTeacherBad }
 }

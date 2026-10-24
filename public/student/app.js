@@ -500,10 +500,8 @@ $('helpForm').onsubmit = async e => {
   if (!type) return toast('어떤 일인지 하나만 골라줘')
   if (text.length < 5) return toast('조금만 더 적어줄래?')
 
-  const bad = findBad(text)
-  if (bad.length && !(await confirmBad(bad, atTeacherBad(text).length > 0))) return $('helpText').focus()
-
   const btn = e.target.querySelector('button[type=submit]')
+  if (!(await checkBeforeSend(text, btn))) return $('helpText').focus()
   btn.disabled = true
   try {
     const res = await api('/api/requests', {
@@ -519,7 +517,8 @@ $('helpForm').onsubmit = async e => {
     clearDraft()
 
     showTicket(res.code, res.danger)
-    if (res.warned) toast('선생님한테 욕해서 경고가 1번 쌓였어')
+    if (res.warned) toast('욕을 써서 경고가 1번 쌓였어')
+    if (res.danger) showDanger()
     renderMine()
   } catch (err) {
     toast(err.message)
@@ -557,22 +556,39 @@ function showTicket(code, urgent) {
   }
 }
 
-// ---------- 욕 들어간 글 보내기 전에 한번 ----------
-// 누가 나한테 한 말을 옮겨 적는 걸 수도 있어서 막지는 않고 물어보기만 함
-function confirmBad(words, atTeacher) {
+// ---------- 보내기 전에 검수 (AI 있으면 AI가) ----------
+// 직접 쓴 욕이면 보내자마자 경고 1번. 누가 한 말 옮긴 건 괜찮음
+async function reviewText(text) {
+  try {
+    return await api('/api/review', { body: { text } })
+  } catch (e) {
+    // 서버 안 되면 폰에서 단어 목록으로라도
+    return {
+      by: 'words',
+      words: findBad(text),
+      insultTeacher: atTeacherBad(text).length > 0,
+      danger: findDanger(text).length > 0,
+      warn: selfBad(text).length > 0,
+      reason: '',
+    }
+  }
+}
+
+function confirmWarn(v) {
   return new Promise(resolve => {
-    const msg = atTeacher
-      ? '<p><b>선생님한테 욕하면 보내자마자 경고가 1번 쌓여.</b><br>경고 3번이면 이 대화는 닫혀.</p>'
-      : '<p><b>누가 너한테 한 말을 옮겨 적은 거면 그대로 보내도 괜찮아.</b><br>장난이면 선생님한테 경고를 받을 수 있어.</p>'
+    const words = v.words && v.words.length
+      ? `<div class="quote">${v.words.map(w => `<mark>${esc(w)}</mark>`).join(', ')}</div>`
+      : ''
     $('warnBox').innerHTML = `
       <div class="modal-ic">${icon('alert', 32)}</div>
-      <h3>${atTeacher ? '선생님한테 욕하면 경고야' : '욕이 들어 있어'}</h3>
-      <p>선생님한테 가는 글이야.</p>
-      <div class="quote">${words.map(w => `<mark>${esc(w)}</mark>`).join(', ')}</div>
-      ${msg}
+      <h3>${v.insultTeacher ? '선생님한테 욕하면 경고야' : '욕이 들어 있어'}</h3>
+      ${words}
+      ${v.by === 'ai' && v.reason ? `<p class="ai-why-line">${icon('sparkle', 13)} AI: ${esc(v.reason)}</p>` : ''}
+      <p><b>이대로 보내면 바로 경고가 1번 쌓여.</b><br>경고 3번이면 이 대화는 닫혀.</p>
+      <p class="hint">누가 너한테 한 말이면 "걔가 ○○이라고 했어요"처럼 적어줘. 그건 경고 안 해.</p>
       <div class="btns">
         <button class="btn go big full" id="badFix">고쳐 쓸게</button>
-        <button class="btn ghost full" id="badSend">그대로 보낼게</button>
+        <button class="btn ghost full" id="badSend">그래도 보낼게</button>
       </div>`
     $('warnModal').hidden = false
     const done = ok => {
@@ -582,6 +598,35 @@ function confirmBad(words, atTeacher) {
     $('badFix').onclick = () => done(false)
     $('badSend').onclick = () => done(true)
   })
+}
+
+// 보내기 전에 검수 → 경고 받을 글이면 물어봄. 보낼 거면 true
+async function checkBeforeSend(text, btn) {
+  const before = btn.innerHTML
+  btn.disabled = true
+  btn.classList.add('busy')
+  if (btn.type === 'submit' && btn.closest('#helpForm')) btn.innerHTML = `${icon('sparkle', 18)} 확인하는 중...`
+  const v = await reviewText(text)
+  btn.innerHTML = before
+  btn.classList.remove('busy')
+  btn.disabled = false
+  if (v.warn && !(await confirmWarn(v))) return false
+  return true
+}
+
+// 위험한 말 보냈을 때 연락처
+function showDanger() {
+  $('warnBox').innerHTML = `
+    <div class="modal-ic">${icon('heart', 30)}</div>
+    <h3>선생님한테 급함으로 보냈어</h3>
+    <p>혹시 지금 위험한 상황이면 기다리지 말고 바로 연락해.</p>
+    <div class="danger-btns modal-sos">
+      <a href="tel:112">112 긴급</a>
+      <a href="tel:117">117 학교폭력</a>
+      <a href="tel:109">109 상담</a>
+    </div>
+    <div class="btns"><button class="btn ghost full" data-close>알겠어</button></div>`
+  $('warnModal').hidden = false
 }
 
 // ---------- 내가 보낸 이야기 (선생님이랑 대화) ----------
@@ -773,19 +818,16 @@ $('myList').addEventListener('submit', async e => {
   const text = ta.value.trim()
   if (!text) return ta.focus()
 
-  const bad = findBad(text)
-  if (bad.length && !(await confirmBad(bad, atTeacherBad(text).length > 0))) return ta.focus()
-
   const btn = form.querySelector('button')
+  if (!(await checkBeforeSend(text, btn))) return ta.focus()
   btn.disabled = true
   try {
     const res = await api(`/api/requests/${form.dataset.code}/messages`, { body: { text } })
     setChatDraft(form.dataset.code, '')
     ta.value = ''
     await renderMine()
-    toast(res.warned
-      ? '선생님한테 욕해서 경고가 쌓였어'
-      : res.danger ? '보냈어. 혹시 지금 위험하면 112나 117에 바로 연락해' : '선생님한테 보냈어')
+    toast(res.warned ? '욕을 써서 경고가 1번 쌓였어' : '선생님한테 보냈어')
+    if (res.danger) showDanger()
   } catch (err) {
     toast(err.message)
   }

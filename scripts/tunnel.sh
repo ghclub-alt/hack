@@ -63,8 +63,9 @@ trap 'kill $(jobs -p) 2> /dev/null; rm -f "$LOG_S" "$LOG_T"' EXIT
 
 echo "터널 여는 중... (10초 정도)"
 for i in $(seq 1 40); do
-  S=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$LOG_S" | head -1)
-  T=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$LOG_T" | head -1)
+  # 실패 로그에 나오는 api.trycloudflare.com 말고 "단어-단어.trycloudflare.com"만
+  S=$(grep -oE 'https://[a-z0-9]+(-[a-z0-9]+)+\.trycloudflare\.com' "$LOG_S" | head -1)
+  T=$(grep -oE 'https://[a-z0-9]+(-[a-z0-9]+)+\.trycloudflare\.com' "$LOG_T" | head -1)
   [ -n "$S" ] && [ -n "$T" ] && break
   sleep 1
 done

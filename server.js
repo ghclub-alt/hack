@@ -324,4 +324,8 @@ student.listen(PORT, () => {
 })
 teacher.listen(TEACHER_PORT, () => {
   console.log(`선생님 화면 → ${urlOf(TEACHER_PORT)}  (PIN: ${PIN})`)
+  if (process.env.CODESPACE_NAME && !process.env.SHIMPYO_SHARE) {
+    console.log('')
+    console.log('※ 위 주소는 깃헙 로그인해야 들어가져요. 다른 사람한테 보여줄 땐 npm run share 로 켜기!')
+  }
 })

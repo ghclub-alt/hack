@@ -51,7 +51,6 @@
   - **쓰던 글은 자동 임시 저장**돼서 새로고침하거나 실수로 나가도 안 날아가요
   - **내가 보낸 이야기**는 새로고침해도 계속 남아 있고, 선생님 답장이 오면 홈에 "답장이 왔어"가 떠요
 - **봤을 때** - 눈앞에서 봤을 때, 단톡방에서 봤을 때, 내가 당할 때, 내가 했을 때
-- **SOS** - 오른쪽 위 빨간 버튼. 112, 117, #0117 문자, 1388, 109 바로 연결
 
 ### 선생님
 - **알림** - 급한 순서대로 위에 떠요. 색이랑 글자(긴급/주의/참고) 둘 다 붙여놨어요
@@ -75,7 +74,7 @@
 - 인터넷이 끊겨도 화면은 뜨고 위에 "인터넷이 끊겼어" 줄이 나와요. 쓰던 글은 폰에 남아 있어서 연결되면 그대로 보내면 됨
 - 기분 기록, 도움 요청 같은 건 저장 안 하고 항상 서버로 보내요 (예전 답장이 보이면 헷갈리니까)
 
-> PWA는 **https 주소**에서만 설치돼요. codespace 주소랑 `npm run tunnel` 주소는 둘 다 https라서 괜찮고,
+> PWA는 **https 주소**에서만 설치돼요. `npm run share`로 나온 주소는 https라서 괜찮고,
 > 내 컴퓨터에서는 `localhost`로 열면 됩니다. `http://192.168...` 같은 주소로는 설치 버튼이 안 떠요.
 >
 > 화면 파일 고쳤는데 폰에서 예전 게 보이면 `public/shared/sw.js`의 `VERSION`을 올려주세요.
@@ -83,43 +82,50 @@
 ## 실행 방법 (GitHub Codespaces)
 
 1. 이 레포에서 `Code` → `Codespaces` → `Create codespace on ...` (브랜치 이름)
-2. 처음 열 때 알아서 `npm install`이랑 터널 프로그램 설치가 돼요 (1~2분 걸림)
+2. 처음 열 때 알아서 `npm install`이랑 cloudflared 설치가 돼요 (1~2분 걸림)
 3. 터미널에서
 
    ```bash
-   npm start
+   npm run share
    ```
 
-   학생 주소, 선생님 주소가 둘 다 찍혀요. codespace 안에서는 `포트` 탭에서도 볼 수 있어요.
-
-### 다른 사람 폰으로 접속하기 (시연할 때)
-
-codespace 포트 주소는 기본이 비공개라서 다른 사람은 못 들어와요. 그래서 터널을 씁니다.
-터미널을 **하나 더** 열어서 (서버는 켜둔 상태로)
-
-```bash
-npm run tunnel
-```
-
-10초쯤 기다리면
+10초쯤 기다리면 이렇게 나와요.
 
 ```
-  학생 화면   →  https://어쩌고.trycloudflare.com
-  선생님 화면 →  https://저쩌고.trycloudflare.com
+================================================
+ 학생 화면  (이 QR을 화면에 띄우거나 나눠주세요)
+================================================
+(QR 코드)
+ https://어쩌고-저쩌고.trycloudflare.com
+
+================================================
+ 선생님 화면  (선생님만! 학생한테 보여주지 말기)
+================================================
+ https://이런-저런.trycloudflare.com
 ```
 
-이렇게 주소 두 개가 나와요. **학생 주소만** QR로 만들어서 나눠주면 됩니다.
-cloudflare는 가입 안 해도 돼서 이걸 기본으로 했어요.
+**이 주소는 깃헙 계정 없이 아무나 들어올 수 있어요.** 학생 QR만 띄워주면 됩니다.
+끄려면 `Ctrl+C`. 다시 켜면 주소가 바뀌어요.
 
-ngrok 쓰고 싶으면 [ngrok 대시보드](https://dashboard.ngrok.com/get-started/your-authtoken)에서 토큰 받아서
+### 왜 `npm start` 말고 `npm run share`?
 
-```bash
-NGROK_AUTHTOKEN=토큰 npm run tunnel:ngrok
-```
+`npm start`만 하면 `https://...app.github.dev` 주소가 나오는데, 이건 codespace 주인 깃헙 계정으로 로그인해야만 들어가져요.
+학생들 폰으로는 못 들어옴. 그래서 cloudflare 터널로 공개 주소를 하나 더 만들어서 그걸 쓰는 거예요.
+(혼자 화면 고치면서 볼 때는 `npm start`로 충분)
 
-(무료 계정에서 터널 두 개가 동시에 안 열리면 cloudflare 쓰기)
+### cloudflare가 안 될 때
 
-> 터널 프로그램이 설치 안 돼 있다고 나오면 `bash scripts/install-tunnel.sh` 한 번 돌리기
+- `cloudflared가 없어요` → `bash scripts/install-tunnel.sh` 한 번 돌리기
+- `cloudflare 서버에 연결이 안 돼요` → 학교 와이파이가 막는 경우가 있어요. 폰 핫스팟으로 해보거나 ngrok 쓰기
+- ngrok: [ngrok 대시보드](https://dashboard.ngrok.com/get-started/your-authtoken)에서 토큰 받아서, `npm start` 켜둔 상태로 다른 터미널에서
+
+  ```bash
+  NGROK_AUTHTOKEN=토큰 npm run tunnel:ngrok
+  ```
+
+  (무료 계정에서 터널 두 개가 동시에 안 열리면 학생 화면 하나만이라도)
+- codespace 포트를 공개로 바꾸는 방법도 있어요: 아래 `포트(Ports)` 탭 → 3000 오른쪽 클릭 → `Port Visibility` → `Public`
+  (이렇게 하면 깃헙 로그인 없이 들어가짐. 선생님 3001은 그대로 두기)
 
 ### 내 컴퓨터에서 돌릴 때
 
@@ -143,7 +149,7 @@ npm start
 **시연 전에 PIN 꼭 바꾸기!**
 
 ```bash
-TEACHER_PIN=0427 npm start
+TEACHER_PIN=0427 npm run share
 ```
 
 ## 시연 순서 (3분)

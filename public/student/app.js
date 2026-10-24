@@ -688,7 +688,9 @@ $('myList').addEventListener('submit', async e => {
     setChatDraft(form.dataset.code, '')
     ta.value = ''
     await renderMine()
-    toast(res.warned ? '선생님한테 욕해서 경고가 쌓였어' : '선생님한테 보냈어')
+    toast(res.warned
+      ? '선생님한테 욕해서 경고가 쌓였어'
+      : res.danger ? '보냈어. 혹시 지금 위험하면 112나 117에 바로 연락해' : '선생님한테 보냈어')
   } catch (err) {
     toast(err.message)
   }
@@ -737,6 +739,9 @@ setupInstall({
 
 // 다시 연결되면 답장 왔는지 바로 확인
 window.addEventListener('online', renderMine)
+
+// AI 판단 켜져 있으면 알려주기 (학생 글이 밖으로 나가는 거니까)
+api('/api/config').then(c => { $('aiHint').hidden = !c.ai }).catch(() => {})
 
 // ---------- 시작 ----------
 if (!me) $('welcome').hidden = false

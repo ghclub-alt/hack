@@ -6,6 +6,17 @@
 
 const express = require('express')
 const path = require('path')
+const fs = require('fs')
+
+// .env 파일 있으면 읽기 (API 키 같은 거. git에는 안 올라감)
+try {
+  fs.readFileSync(path.join(__dirname, '.env'), 'utf8').split('\n').forEach(line => {
+    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/)
+    if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
+  })
+} catch (e) {}
+
+const ai = require('./ai')
 const crypto = require('crypto')
 const { EventEmitter } = require('events')
 const { db, load, save, reset, today, makeCode } = require('./db')
@@ -100,6 +111,31 @@ function push(res, type, data) {
   res.write(`event: ${type}\ndata: ${JSON.stringify(data)}\n\n`)
 }
 
+// 메시지 판단: ChatGPT 키 있으면 AI가, 없으면(또는 실패하면) 단어 목록으로
+async function review(text) {
+  const v = await ai.judge(text)
+  if (v) return { by: 'ai', ...v }
+  return {
+    by: 'words',
+    insultTeacher: atTeacherBad(text).length > 0,
+    profanity: findBad(text).length > 0,
+    quoted: false,
+    danger: findDanger(text).length > 0,
+    prank: false,
+    reason: '',
+  }
+}
+
+// 메시지에 붙여둘 판단 결과 (선생님 화면에 보여줌)
+function checkOf(v) {
+  return { by: v.by, insult: v.insultTeacher, danger: v.danger, prank: v.prank, reason: v.reason }
+}
+
+// AI가 욕 아니라고 하면 단어 목록에 걸린 것도 빼줌 ("죽어라 공부" 같은 거)
+function badOf(text, v) {
+  return v.by === 'ai' && !v.profanity ? [] : findBad(text)
+}
+
 // 선생님한테 대놓고 욕하면 자동 경고
 function autoWarn(r) {
   r.warnings += 1
@@ -141,7 +177,7 @@ student.get('/api/moods/mine', (req, res) => {
 })
 
 // 도움 요청 보내기
-student.post('/api/requests', (req, res) => {
+student.post('/api/requests', async (req, res) => {
   const { cls, type, text, want, name } = req.body
   if (!okCls(cls) || !TYPES.includes(type) || !WANTS.includes(want)) {
     return res.status(400).json({ error: '빠진 게 있어요' })
@@ -151,6 +187,7 @@ student.post('/api/requests', (req, res) => {
   }
 
   const body = text.trim().slice(0, 1000)
+  const v = await review(body)
   const now = Date.now()
   const r = {
     code: makeCode(),
@@ -161,19 +198,20 @@ student.post('/api/requests', (req, res) => {
     // 직접 도와달라고 한 경우에만 이름 받음
     name: want === 'meet' && typeof name === 'string' ? name.trim().slice(0, 20) : '',
     danger: findDanger(body),
-    messages: [{ from: 'student', text: body, at: now, bad: findBad(body) }],
+    messages: [{ from: 'student', text: body, at: now, bad: badOf(body, v), check: checkOf(v) }],
+    aiDanger: v.by === 'ai' && v.danger ? (v.reason || 'AI가 위험 신호를 찾았어요') : '',
     warnings: 0,
     locked: false,
     status: 'new',
     reply: '',
     at: now,
   }
-  const warned = atTeacherBad(body).length > 0
+  const warned = v.insultTeacher
   if (warned) autoWarn(r)
   db.reqs.push(r)
   save()
   changed(r)
-  res.json({ code: r.code, danger: r.danger.length > 0, warned })
+  res.json({ code: r.code, danger: r.danger.length > 0 || !!r.aiDanger, warned })
 })
 
 // 접수번호로 대화 보기. 이름은 안 돌려줌
@@ -184,7 +222,7 @@ student.get('/api/requests/:code', (req, res) => {
 })
 
 // 학생이 대화 이어가기
-student.post('/api/requests/:code/messages', (req, res) => {
+student.post('/api/requests/:code/messages', async (req, res) => {
   const r = findReq(req.params.code)
   if (!r) return res.status(404).json({ error: '없는 번호' })
   if (r.locked) return res.status(403).json({ error: '선생님이 이 대화를 닫았어. 필요하면 새로 이야기를 보내줘.' })
@@ -199,14 +237,26 @@ student.post('/api/requests/:code/messages', (req, res) => {
   }
   if (r.messages.length >= 200) return res.status(400).json({ error: '대화가 너무 길어졌어. 새로 이야기를 보내줘.' })
 
-  r.messages.push({ from: 'student', text, at: Date.now(), bad: findBad(text) })
-  addDanger(r, text)
+  // AI 기다리는 동안 또 보내면 안 되니까 먼저 넣어두고 판단은 나중에 붙임
+  const m = { from: 'student', text, at: Date.now(), bad: findBad(text) }
+  r.messages.push(m)
   r.status = 'new' // 선생님이 다시 봐야 함
-  const warned = atTeacherBad(text).length > 0
+
+  const v = await review(text)
+  m.bad = badOf(text, v)
+  m.check = checkOf(v)
+  addDanger(r, text)
+  if (v.by === 'ai' && v.danger) r.aiDanger = v.reason || 'AI가 위험 신호를 찾았어요'
+  const warned = v.insultTeacher && !r.locked
   if (warned) autoWarn(r)
   save()
   changed(r)
-  res.json({ ...forStudent(r), warned })
+  res.json({ ...forStudent(r), warned, danger: findDanger(text).length > 0 || (v.by === 'ai' && v.danger) })
+})
+
+// AI 판단 켜져 있는지 (학생 화면에 안내하려고)
+student.get('/api/config', (req, res) => {
+  res.json({ ai: ai.enabled() })
 })
 
 // 내 이야기에 뭐 바뀌면 바로 알려주기 (접수번호 아는 것만)
@@ -275,14 +325,16 @@ teacher.get('/api/alerts', (req, res) => {
   const now = Date.now()
   const alerts = []
 
-  // 1. 위험한 단어가 들어간 요청
+  // 1. 위험한 단어가 들어간 요청 (또는 AI가 위험하다고 본 거)
   reqsOf(cls)
-    .filter(r => r.danger && r.danger.length && r.status !== 'done')
+    .filter(r => ((r.danger && r.danger.length) || r.aiDanger) && r.status !== 'done')
     .forEach(r => {
       alerts.push({
         level: 'red',
         title: '위험 신호가 있는 요청',
-        msg: `${r.cls}반 요청에 "${r.danger.slice(0, 2).join('", "')}" 같은 말이 있어요. 바로 확인해 주세요.`,
+        msg: r.danger && r.danger.length
+          ? `${r.cls}반 요청에 "${r.danger.slice(0, 2).join('", "')}" 같은 말이 있어요. 바로 확인해 주세요.`
+          : `${r.cls}반 요청 · AI: ${r.aiDanger}. 바로 확인해 주세요.`,
         code: r.code,
       })
     })
@@ -304,11 +356,17 @@ teacher.get('/api/alerts', (req, res) => {
     .filter(r => r.status === 'new' && r.messages)
     .forEach(r => {
       const last = r.messages[r.messages.length - 1]
-      if (last.from !== 'student' || !last.bad || !last.bad.length) return
+      if (last.from !== 'student') return
+      const bad = last.bad && last.bad.length
+      const prank = last.check && last.check.prank
+      if (!bad && !prank) return
+      const why = last.check && last.check.by === 'ai' && last.check.reason ? ` AI: ${last.check.reason}` : ''
       alerts.push({
         level: 'yellow',
-        title: '욕설이 들어간 메시지',
-        msg: `"${last.bad.slice(0, 2).join('", "')}" 같은 말이 있어요. 누가 한 말을 옮긴 건지, 장난인지 확인해 주세요.`,
+        title: bad ? '욕설이 들어간 메시지' : '장난 같은 메시지',
+        msg: bad
+          ? `"${last.bad.slice(0, 2).join('", "')}" 같은 말이 있어요. 누가 한 말을 옮긴 건지, 장난인지 확인해 주세요.${why}`
+          : `진지한 고민이 아닐 수도 있어요.${why}`,
         code: r.code,
       })
     })
@@ -353,6 +411,10 @@ teacher.get('/api/alerts', (req, res) => {
   const order = { red: 0, orange: 1, yellow: 2 }
   alerts.sort((a, b) => order[a.level] - order[b.level])
   res.json(alerts)
+})
+
+teacher.get('/api/config', (req, res) => {
+  res.json({ ai: ai.enabled(), model: ai.enabled() ? ai.MODEL : '' })
 })
 
 // 학생이 뭐 보내거나 기분 누르면 바로 알려주기
@@ -618,5 +680,8 @@ student.listen(PORT, () => {
 
 teacher.listen(TEACHER_PORT, () => {
   console.log(`선생님 화면 → ${urlOf(TEACHER_PORT)}  (PIN: ${PIN})`)
+  console.log(ai.enabled()
+    ? `ChatGPT 판단 → 켜짐 (${ai.MODEL})`
+    : 'ChatGPT 판단 → 꺼짐 (OPENAI_API_KEY 없음. 단어 목록으로 판단)')
   onOpen()
 }).on('error', onListenError(TEACHER_PORT))

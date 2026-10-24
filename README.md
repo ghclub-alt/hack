@@ -190,12 +190,72 @@ npm start
 | `TEACHER_PORT` | 3001 | 선생님 화면 포트 |
 | `TEACHER_PIN` | 1234 | 선생님 화면 비밀번호 |
 | `TEACHER_PUBLIC` | (없음) | `1`이면 codespace에서 선생님 포트도 공개 |
+| `OPENAI_API_KEY` | (없음) | 넣으면 ChatGPT로 메시지 판단 |
+| `OPENAI_MODEL` | gpt-4o-mini | 쓸 모델 |
 
 **시연 전에 PIN 꼭 바꾸기!**
 
 ```bash
 TEACHER_PIN=0427 npm run share
 ```
+
+## ChatGPT로 판단하기 (선택)
+
+OpenAI API 키를 넣으면 학생 메시지를 ChatGPT가 같이 봐요. 안 넣어도 단어 목록으로 다 돌아가요.
+
+| | 단어 목록 (기본) | ChatGPT |
+| --- | --- | --- |
+| "선생님 걔가 저한테 OO이라고 했어요" | `라고`, `했어` 있으면 넘어감 | 옮긴 말인지 문맥으로 판단 |
+| "요즘 그냥 다 끝내고 싶어요" | 목록에 없으면 못 잡음 | 위험 신호로 **긴급** 알림 |
+| "죽어라 공부했어요" | 욕으로 잘못 잡음 | 욕 아님 → 욕설 표시 뺌 |
+| 장난 메시지 | 모름 | "장난 같은 메시지" 알림 |
+
+선생님 화면에는 걸린 메시지 밑에 `AI · 이유`가 나와요. 최종 판단은 선생님이!
+
+### 키 넣는 법
+
+**codespace 비밀값으로 넣기 (추천)** - 깃헙에 키가 절대 안 올라가요
+
+1. 깃헙 → Settings → Codespaces → **Secrets** → `New secret`
+2. 이름 `OPENAI_API_KEY`, 값에 키 붙여넣고, Repository access에서 이 레포 선택
+3. codespace 화면에 "다시 시작하라"는 알림 뜨면 누르기 (안 뜨면 왼쪽 아래 `Codespaces` → `Rebuild Container`)
+
+**또는 .env 파일로**
+
+```bash
+cp .env.example .env
+# .env 열어서 OPENAI_API_KEY= 뒤에 키 붙여넣기
+```
+
+`.env`는 `.gitignore`에 있어서 커밋 안 돼요. 그래도 **키를 코드나 README에 직접 쓰지 마세요.** 깃헙에 올라가면 바로 털려요.
+
+켜졌는지는 `npm start` 했을 때 `ChatGPT 판단 → 켜짐 (gpt-4o-mini)`, 선생님 화면 왼쪽 위에서 확인.
+
+- 학생 이름은 안 보내고 **메시지 내용만** 보내요. 학생 화면에도 "AI가 같이 확인해" 안내가 떠요
+- 8초 안에 답이 없거나 실패하면 그냥 단어 목록으로 판단해요 (그래서 키 잘못 넣어도 앱은 돌아감. 서버 로그에 `[AI] 실패` 찍힘)
+- 말 점검(보내기 전 확인)은 여전히 서버로 안 보내요
+- 메시지 하나에 1번 부르고, gpt-4o-mini면 해커톤 동안 몇백 원 수준. 그래도 OpenAI 대시보드에서 사용 한도 걸어두기
+
+## 코드 최신으로 받기 (codespace 안 지우고)
+
+codespace를 지우면 주소가 바뀌니까, 지우지 말고 코드만 새로 받으면 돼요.
+
+```bash
+npm run update
+```
+
+이게 알아서 해주는 거:
+1. 지금 브랜치 최신 코드 받기 (`git pull`)
+2. 새로 필요한 패키지 설치 (`npm install`)
+3. 직접 고친 파일 있으면 잠깐 치워뒀다가 다시 넣기
+
+그다음 **서버 껐다 켜기**: 서버 켜진 터미널에서 `Ctrl+C` → `npm start`
+
+> 서버를 `npm run dev`로 켜두면 코드 바뀔 때 알아서 다시 켜져요.
+> 학생/선생님 폰은 새로고침 한 번 (앱으로 설치했으면 껐다 켜기)
+
+- 기분 기록, 도움 요청(`data/db.json`), API 키(`.env`)는 git에 없어서 업데이트해도 그대로예요
+- 손으로 하고 싶으면 VS Code 왼쪽 **소스 제어(Source Control)** 아이콘 → `...` → **Pull**, 또는 터미널에서 `git pull`
 
 ## 시연 순서 (3분)
 
@@ -211,6 +271,7 @@ TEACHER_PIN=0427 npm run share
 
 ```
 server.js              서버 (학생 3000, 선생님 3001 따로 띄움)
+ai.js                  ChatGPT로 메시지 판단 (키 있을 때만)
 db.js                  json 파일 저장
 public/
   shared/              둘 다 쓰는 거

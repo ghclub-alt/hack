@@ -327,3 +327,10 @@ section { scroll-margin-top: 20px; }
 .warn-btn { color: var(--bad); }
 .locked-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 8px 12px; background: var(--soft); border-radius: 10px; font-size: 14px; color: var(--ink-2); }
 .req.locked { background: #fbfaf7; }
+
+/* ----- AI 판단 ----- */
+.ai-state { font-size: 13px; font-weight: 700; color: var(--ink-2); padding: 8px 10px; border: 1.5px dashed #d8d0bf; border-radius: 10px; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.ai-state small { width: 100%; font-weight: 400; font-size: 12px; color: var(--muted); }
+.ai-state.on { color: var(--forest); border-style: solid; border-color: var(--forest); background: var(--forest-soft); }
+.ai-state:empty { display: none; }
+.ai-note { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 12px; color: var(--forest); }

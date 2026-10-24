@@ -41,6 +41,18 @@ function start() {
   $('dash').hidden = false
   refresh()
   connectEvents()
+  showAiState()
+}
+
+// 사이드바에 ChatGPT 판단 켜졌는지
+async function showAiState() {
+  try {
+    const c = await api('/api/config')
+    $('aiState').innerHTML = c.ai
+      ? `${icon('sparkle', 14)} ChatGPT 판단 켜짐<small>${esc(c.model)}</small>`
+      : `${icon('sparkle', 14)} ChatGPT 판단 꺼짐<small>단어 목록으로 판단 중</small>`
+    $('aiState').classList.toggle('on', c.ai)
+  } catch (e) {}
 }
 
 // 서버 재시작하면 토큰 날아감 → 다시 로그인 화면으로
@@ -182,7 +194,7 @@ function renderKpis(s) {
   const hardPct = s.total ? Math.round(hard / s.total * 100) : 0
   const activeDays = s.days.filter(d => d.counts.some(n => n)).length || 1
   const newN = reqs.filter(r => r.status === 'new').length
-  const urgent = reqs.filter(r => r.status === 'new' && ((r.danger && r.danger.length) || r.want === 'meet')).length
+  const urgent = reqs.filter(r => r.status === 'new' && (isDanger(r) || r.want === 'meet')).length
 
   const hardSub = hardPct >= 30
     ? `<span class="kpi-sub orange">${icon('alert', 14)} 주의: 평소보다 높아요</span>`
@@ -344,7 +356,7 @@ function renderWeek(s) {
 
 // ---------- 도움 요청 ----------
 function isDanger(r) {
-  return r.danger && r.danger.length > 0
+  return (r.danger && r.danger.length > 0) || !!r.aiDanger
 }
 
 // 위험한 말은 빨강, 욕은 노랑으로 표시
@@ -368,9 +380,15 @@ function tMsgHtml(r, m) {
     </div>`
   }
   const bad = m.bad && m.bad.length
+  const c = m.check
+  // AI가 뭔가 걸렸다고 했을 때만 이유 보여줌 (다 보여주면 시끄러움)
+  const aiNote = c && c.by === 'ai' && c.reason && (c.insult || c.danger || c.prank || bad)
+    ? `<span class="ai-note">${icon('sparkle', 11)} AI · ${esc(c.reason)}</span>`
+    : ''
   return `<div class="tmsg">
-    <small>학생 · ${timeAgo(m.at)} ${bad ? `<span class="bad-tag">${icon('alert', 11)} 욕설 포함</span>` : ''}</small>
+    <small>학생 · ${timeAgo(m.at)} ${bad ? `<span class="bad-tag">${icon('alert', 11)} 욕설 포함</span>` : ''}${c && c.prank ? '<span class="bad-tag">장난?</span>' : ''}</small>
     <div class="tbubble">${markText(m.text, r.danger, m.bad)}</div>
+    ${aiNote}
   </div>`
 }
 

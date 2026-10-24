@@ -319,13 +319,26 @@ function urlOf(port) {
   return `http://localhost:${port}`
 }
 
+// 포트 겹치면 영어 에러 말고 뭘 하면 되는지 알려주기
+function onListenError(port) {
+  return err => {
+    if (err.code !== 'EADDRINUSE') throw err
+    console.log('')
+    console.log(`포트 ${port}번을 벌써 다른 서버가 쓰고 있어요.`)
+    console.log('다른 터미널에 npm start 나 npm run share 가 켜져 있으면 거기서 Ctrl+C 로 끄고 다시 해주세요.')
+    console.log('(npm start 켜둔 채로 공개 주소만 필요하면 npm run share 해도 돼요. 켜진 서버 그대로 씀)')
+    process.exit(1)
+  }
+}
+
 student.listen(PORT, () => {
   console.log(`학생 화면   → ${urlOf(PORT)}`)
-})
+}).on('error', onListenError(PORT))
+
 teacher.listen(TEACHER_PORT, () => {
   console.log(`선생님 화면 → ${urlOf(TEACHER_PORT)}  (PIN: ${PIN})`)
   if (process.env.CODESPACE_NAME && !process.env.SHIMPYO_SHARE) {
     console.log('')
     console.log('※ 위 주소는 깃헙 로그인해야 들어가져요. 다른 사람한테 보여줄 땐 npm run share 로 켜기!')
   }
-})
+}).on('error', onListenError(TEACHER_PORT))

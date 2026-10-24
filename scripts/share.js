@@ -25,9 +25,30 @@ if (!has('cloudflared')) {
   process.exit(1)
 }
 
-// 같은 프로세스에서 서버 켜기
-process.env.SHIMPYO_SHARE = '1'
-require('../server')
+// 서버가 벌써 켜져 있나? (npm start 켜둔 채로 share 하는 경우)
+async function alive(port) {
+  try {
+    const r = await fetch(`http://localhost:${port}/api/ping`)
+    return r.ok
+  } catch (e) {
+    return false
+  }
+}
+
+async function startServer() {
+  const [s, t] = await Promise.all([alive(PORT), alive(TEACHER_PORT)])
+  if (s && t) {
+    console.log('서버가 이미 켜져 있어서 그거 그대로 쓸게요.')
+    return
+  }
+  if (s || t) {
+    console.log(`포트 ${s ? PORT : TEACHER_PORT}번만 켜져 있어요. 켜져 있는 서버 끄고(Ctrl+C) 다시 해주세요.`)
+    process.exit(1)
+  }
+  // 아무것도 안 켜져 있으면 같은 프로세스에서 서버 켜기
+  process.env.SHIMPYO_SHARE = '1'
+  require('../server')
+}
 
 const procs = []
 
@@ -61,8 +82,11 @@ function stop() {
 }
 process.on('SIGINT', stop)
 process.on('SIGTERM', stop)
+// 서버 에러로 꺼질 때도 터널은 같이 끄기
+process.on('exit', () => procs.forEach(p => p.kill()))
 
 ;(async () => {
+  await startServer()
   console.log('\n공개 주소 만드는 중... (10초 정도)\n')
   try {
     const [s, t] = await Promise.all([openTunnel(PORT), openTunnel(TEACHER_PORT)])

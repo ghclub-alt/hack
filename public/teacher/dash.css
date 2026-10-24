@@ -334,3 +334,7 @@ section { scroll-margin-top: 20px; }
 .ai-state.on { color: var(--forest); border-style: solid; border-color: var(--forest); background: var(--forest-soft); }
 .ai-state:empty { display: none; }
 .ai-note { display: inline-flex; align-items: center; gap: 4px; margin-top: 3px; font-size: 12px; color: var(--forest); }
+
+.del-btn { margin-left: auto; color: var(--muted); }
+.del-btn:hover { color: var(--bad); }
+.tag.del-t { background: var(--soft); color: var(--ink-2); }

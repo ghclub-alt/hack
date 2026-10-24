@@ -232,14 +232,29 @@ student.post('/api/requests', async (req, res) => {
 // 접수번호로 대화 보기. 이름은 안 돌려줌
 student.get('/api/requests/:code', (req, res) => {
   const r = findReq(req.params.code)
-  if (!r) return res.status(404).json({ error: '없는 번호' })
+  // 학생이 지운 건 학생 쪽에서는 없는 걸로 (번호 아는 다른 사람이 못 보게)
+  if (!r || r.studentDeleted) return res.status(404).json({ error: '없는 번호' })
   res.json(forStudent(r))
+})
+
+// 학생이 내 이야기 지우기
+// 내 목록에서는 없어지고 더 대화 못 함. 근데 위험한 신고가 같이 사라지면 안 돼서
+// 선생님 쪽에는 "학생이 지움"으로 남겨둠 (선생님이 완전히 지울 수 있음)
+student.post('/api/requests/:code/delete', (req, res) => {
+  const r = findReq(req.params.code)
+  if (!r || r.studentDeleted) return res.status(404).json({ error: '없는 번호' })
+  r.studentDeleted = Date.now()
+  r.locked = true
+  r.messages.push({ from: 'teacher', kind: 'info', text: '학생이 이 이야기를 지웠어요.', at: Date.now() })
+  save()
+  changed(r)
+  res.json({ ok: true })
 })
 
 // 학생이 대화 이어가기
 student.post('/api/requests/:code/messages', async (req, res) => {
   const r = findReq(req.params.code)
-  if (!r) return res.status(404).json({ error: '없는 번호' })
+  if (!r || r.studentDeleted) return res.status(404).json({ error: '없는 번호' })
   if (r.locked) return res.status(403).json({ error: '선생님이 이 대화를 닫았어. 필요하면 새로 이야기를 보내줘.' })
 
   const text = String(req.body.text || '').trim().slice(0, 500)
@@ -551,6 +566,16 @@ teacher.post('/api/requests/:code/done', (req, res) => {
   r.status = 'done'
   save()
   changed(r)
+  res.json({ ok: true })
+})
+
+// 선생님은 완전히 지우기 (되돌리기 안 됨)
+teacher.post('/api/requests/:code/delete', (req, res) => {
+  const r = findReq(req.params.code)
+  if (!r) return res.status(404).json({ error: '없는 번호' })
+  db.reqs = db.reqs.filter(x => x !== r)
+  save()
+  changed(r) // 학생 화면도 바로 목록에서 빠지게
   res.json({ ok: true })
 })
 

@@ -437,6 +437,7 @@ function renderReqs() {
           <span class="tag want-${r.want}">${icon(wantIc, 13)} ${WANT[r.want]}</span>
           ${hasBad ? `<span class="tag bad-t">${icon('alert', 12)} 욕설</span>` : ''}
           ${r.warnings ? `<span class="tag warn-t">경고 ${r.warnings}/3</span>` : ''}
+          ${r.studentDeleted ? `<span class="tag del-t">${icon('trash', 12)} 학생이 지움</span>` : ''}
           ${r.status !== 'new' ? `<span class="tag st-${r.status}">${r.locked ? '대화 닫힘' : STATUS[r.status]}</span>` : ''}
           <span class="when">${clsName(r.cls)} · ${timeAgo(r.at)} · #${r.code}</span>
         </div>
@@ -444,16 +445,18 @@ function renderReqs() {
         <div class="convo">${msgs.map(m => tMsgHtml(r, m)).join('')}</div>
         ${r.locked ? `
           <div class="locked-row">
-            <span>${icon('lock', 14)} 경고 3번이라 학생이 더 못 보내요</span>
-            <button class="btn ghost small" data-act="unlock" data-code="${r.code}">다시 열기</button>
+            <span>${icon('lock', 14)} ${r.studentDeleted ? '학생이 지운 이야기예요' : '경고 3번이라 학생이 더 못 보내요'}</span>
+            ${r.studentDeleted ? '' : `<button class="btn ghost small" data-act="unlock" data-code="${r.code}">다시 열기</button>`}
+            <button class="btn ghost small del-btn" data-act="delete" data-code="${r.code}">${icon('trash', 14)} 삭제</button>
           </div>` : `
           <div class="reply-box">
             <div class="quick">${QUICK.map((q, i) => `<button data-q="${i}">${esc(q.length > 18 ? q.slice(0, 17) + '…' : q)}</button>`).join('')}</div>
-            <textarea rows="2" data-code="${r.code}" placeholder="학생한테 답장 (학생은 내가 보낸 이야기에서 바로 봐요)"></textarea>
+            <textarea rows="2" data-code="${r.code}" enterkeyhint="send" placeholder="학생한테 답장 (Enter 보내기 · Shift+Enter 줄바꿈)"></textarea>
             <div class="req-btns">
               <button class="btn ok small" data-act="reply" data-code="${r.code}">${icon('send', 14)} 답장 보내기</button>
               <button class="btn small warn-btn" data-act="warn" data-code="${r.code}">${icon('alert', 14)} 경고 주기</button>
               ${r.status !== 'done' ? `<button class="btn ghost small" data-act="done" data-code="${r.code}">${icon('check', 14)} 마무리</button>` : ''}
+              <button class="btn ghost small del-btn" data-act="delete" data-code="${r.code}">${icon('trash', 14)} 삭제</button>
             </div>
           </div>`}
       </div>
@@ -468,6 +471,14 @@ function renderReqs() {
     if (focused === t.dataset.code) t.focus()
   })
 }
+
+// Enter 누르면 답장 보내기, Shift+Enter는 줄바꿈 (한글 조합 중이면 무시)
+$('reqList').addEventListener('keydown', e => {
+  const ta = e.target.closest('.reply-box textarea')
+  if (!ta || e.key !== 'Enter' || e.shiftKey || e.isComposing || e.keyCode === 229) return
+  e.preventDefault()
+  ta.closest('.req').querySelector('button[data-act=reply]').click()
+})
 
 // 답장 칸 눌렀을 때만 빠른 답장 펼침
 // (버튼 눌렀을 때도 펼치면 버튼이 밀려나서 클릭이 빗나감)
@@ -509,6 +520,10 @@ $('reqList').addEventListener('click', async e => {
       if (msg === null) return
       await api(`/api/requests/${code}/warn`, { body: { text: msg } })
       toast(n >= 3 ? '경고 보내고 대화를 닫았어요' : '경고 보냈어요')
+    } else if (btn.dataset.act === 'delete') {
+      if (!confirm('이 대화를 완전히 지울까요?\n학생 화면에서도 없어지고 되돌릴 수 없어요.')) return
+      await api(`/api/requests/${code}/delete`, { method: 'POST', body: {} })
+      toast('지웠어요')
     } else if (btn.dataset.act === 'unlock') {
       if (!confirm('대화를 다시 열까요? 경고 횟수도 0으로 돌아가요.')) return
       await api(`/api/requests/${code}/unlock`, { method: 'POST', body: {} })

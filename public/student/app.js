@@ -702,9 +702,10 @@ function storyHtml(r) {
       ${r.locked
         ? `<p class="sys locked-msg">${icon('lock', 14)} 선생님이 이 대화를 닫았어. 필요하면 새로 이야기를 보내줘.</p>`
         : `<form class="chat-form" data-code="${r.code}">
-            <textarea rows="1" maxlength="500" placeholder="${r.status === 'done' ? '더 하고 싶은 말 있으면 보내도 돼' : '선생님한테 답장하기'}"></textarea>
+            <textarea rows="1" maxlength="500" enterkeyhint="send" placeholder="${r.status === 'done' ? '더 하고 싶은 말 있으면 보내도 돼' : '선생님한테 답장 (Enter 보내기)'}"></textarea>
             <button class="btn go" type="submit" aria-label="보내기">${icon('send', 17)}</button>
           </form>`}
+      <button class="story-del" type="button" data-del="${r.code}">${icon('trash', 13)} 이 이야기 지우기</button>
     </div>
   </details>`
 }
@@ -807,6 +808,34 @@ $('myList').addEventListener('input', e => {
   // 쓰는 만큼 칸 늘어나게
   ta.style.height = 'auto'
   ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
+})
+
+// Enter 누르면 보내기, Shift+Enter는 줄바꿈
+// 한글 치는 중(조합 중)에 Enter 누르면 마지막 글자가 따로 한 번 더 가는 버그 있어서 isComposing 체크
+$('myList').addEventListener('keydown', e => {
+  const ta = e.target.closest('.chat-form textarea')
+  if (!ta || e.key !== 'Enter' || e.shiftKey || e.isComposing || e.keyCode === 229) return
+  e.preventDefault()
+  ta.closest('.chat-form').requestSubmit()
+})
+
+// 이야기 지우기
+$('myList').addEventListener('click', async e => {
+  const del = e.target.closest('[data-del]')
+  if (!del) return
+  if (!confirm('이 이야기를 지울까?\n내 목록에서 없어지고 더 이상 대화할 수 없어.\n(혹시 위험한 일이었으면 선생님은 계속 볼 수 있어)')) return
+  const code = del.dataset.del
+  try {
+    await api(`/api/requests/${code}/delete`, { method: 'POST', body: {} })
+  } catch (err) {
+    if (err.status !== 404) return toast(err.message)
+  }
+  me.codes = me.codes.filter(c => c !== code)
+  delete me.seen[code]
+  saveMe()
+  setChatDraft(code, '')
+  await renderMine()
+  toast('지웠어')
 })
 
 $('myList').addEventListener('submit', async e => {

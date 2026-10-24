@@ -697,15 +697,18 @@ function storyHtml(r) {
       <span class="story-sum">${esc(short)}</span>
     </summary>
     <div class="thread">
-      ${r.messages.map(msgHtml).join('')}
-      ${waiting ? '<div class="waiting"><span class="dots"><i></i><i></i><i></i></span> 선생님이 아직 확인 중이야</div>' : ''}
-      ${r.locked
-        ? `<p class="sys locked-msg">${icon('lock', 14)} 선생님이 이 대화를 닫았어. 필요하면 새로 이야기를 보내줘.</p>`
-        : `<form class="chat-form" data-code="${r.code}">
-            <textarea rows="1" maxlength="500" enterkeyhint="send" placeholder="${r.status === 'done' ? '더 하고 싶은 말 있으면 보내도 돼' : '선생님한테 답장 (Enter 보내기)'}"></textarea>
-            <button class="btn go" type="submit" aria-label="보내기">${icon('send', 17)}</button>
-          </form>`}
-      <button class="story-del" type="button" data-del="${r.code}">${icon('trash', 13)} 이 이야기 지우기</button>
+      <div class="thread-msgs">
+        ${r.messages.map(msgHtml).join('')}
+        ${waiting ? '<div class="waiting"><span class="dots"><i></i><i></i><i></i></span> 선생님이 아직 확인 중이야</div>' : ''}
+      </div>
+      <div class="thread-foot" data-locked="${r.locked ? 1 : 0}">
+        ${r.locked
+          ? `<p class="sys locked-msg">${icon('lock', 14)} 선생님이 이 대화를 닫았어. 필요하면 새로 이야기를 보내줘.</p>`
+          : `<form class="chat-form" data-code="${r.code}">
+              <textarea rows="1" maxlength="500" enterkeyhint="send" placeholder="${r.status === 'done' ? '더 하고 싶은 말 있으면 보내도 돼' : '선생님한테 답장 (Enter 보내기)'}"></textarea>
+              <button class="btn go" type="submit" aria-label="보내기">${icon('send', 17)}</button>
+            </form>`}
+      </div>
     </div>
   </details>`
 }
@@ -744,6 +747,15 @@ async function renderMine(opts = {}) {
     return
   }
 
+  // 이미 그려져 있고 순서도 같으면 바뀐 부분만 바꿔 끼움
+  // (통째로 다시 그리면 쓰던 칸이 새로 바뀌어서 한글 조합 중이던 글자가 날아감)
+  const shown = [...box.querySelectorAll('details.story')]
+  if (shown.length === list.length && shown.every((d, i) => d.dataset.code === list[i].code)) {
+    list.forEach((r, i) => patchStory(shown[i], r))
+    afterRender(list, opts)
+    return
+  }
+
   // 쓰고 있던 칸에 커서 있으면 다시 그린 뒤에도 거기로
   const focused = document.activeElement && document.activeElement.closest
     ? document.activeElement.closest('.chat-form')
@@ -763,7 +775,36 @@ async function renderMine(opts = {}) {
     }
     if (ta && d.dataset.code === focusedCode) ta.focus()
   })
+  afterRender(list, opts)
+}
 
+// 이야기 하나만 바꿔 끼우기. 입력 칸(.chat-form)은 안 건드림
+function patchStory(d, r) {
+  const tmp = document.createElement('div')
+  tmp.innerHTML = storyHtml(r)
+  const nd = tmp.firstElementChild
+
+  d.className = nd.className
+  if (nd.open) d.open = true // 새 답장 오면 펼치기 (접는 건 학생 마음)
+  d.querySelector('summary').innerHTML = nd.querySelector('summary').innerHTML
+
+  const msgs = d.querySelector('.thread-msgs')
+  const newMsgs = nd.querySelector('.thread-msgs').innerHTML
+  if (msgs.innerHTML !== newMsgs) msgs.innerHTML = newMsgs
+
+  // 닫혔다/열렸다 바뀔 때만 아래쪽(입력 칸) 바꿈
+  const foot = d.querySelector('.thread-foot')
+  const newFoot = nd.querySelector('.thread-foot')
+  if (foot.dataset.locked !== newFoot.dataset.locked) {
+    foot.replaceWith(newFoot)
+  } else {
+    const ta = foot.querySelector('textarea')
+    const nta = newFoot.querySelector('textarea')
+    if (ta && nta) ta.placeholder = nta.placeholder
+  }
+}
+
+function afterRender(list, opts) {
   lastList = list
   // 배지는 이번엔 그대로 보여주고 다음부터 안 보이게
   if (opts.visit && !$('page-help').hidden) {
@@ -810,45 +851,26 @@ $('myList').addEventListener('input', e => {
   ta.style.height = Math.min(ta.scrollHeight, 160) + 'px'
 })
 
-// Enter 누르면 보내기, Shift+Enter는 줄바꿈
-// 한글 치는 중(조합 중)에 Enter 누르면 마지막 글자가 따로 한 번 더 가는 버그 있어서 isComposing 체크
-$('myList').addEventListener('keydown', e => {
-  const ta = e.target.closest('.chat-form textarea')
-  if (!ta || e.key !== 'Enter' || e.shiftKey || e.isComposing || e.keyCode === 229) return
-  e.preventDefault()
-  ta.closest('.chat-form').requestSubmit()
-})
-
-// 이야기 지우기
-$('myList').addEventListener('click', async e => {
-  const del = e.target.closest('[data-del]')
-  if (!del) return
-  if (!confirm('이 이야기를 지울까?\n내 목록에서 없어지고 더 이상 대화할 수 없어.\n(혹시 위험한 일이었으면 선생님은 계속 볼 수 있어)')) return
-  const code = del.dataset.del
-  try {
-    await api(`/api/requests/${code}/delete`, { method: 'POST', body: {} })
-  } catch (err) {
-    if (err.status !== 404) return toast(err.message)
-  }
-  me.codes = me.codes.filter(c => c !== code)
-  delete me.seen[code]
-  saveMe()
-  setChatDraft(code, '')
-  await renderMine()
-  toast('지웠어')
-})
+// Enter 누르면 보내기, Shift+Enter는 줄바꿈 (한글 조합 처리는 common.js)
+enterToSend($('myList'), '.chat-form textarea', ta => ta.closest('.chat-form').requestSubmit())
 
 $('myList').addEventListener('submit', async e => {
   const form = e.target.closest('.chat-form')
   if (!form) return
   e.preventDefault()
 
+  if (form.dataset.busy) return // 보내는 중에 또 누르면 무시
   const ta = form.querySelector('textarea')
   const text = ta.value.trim()
   if (!text) return ta.focus()
 
   const btn = form.querySelector('button')
-  if (!(await checkBeforeSend(text, btn))) return ta.focus()
+  form.dataset.busy = '1'
+  const ok = await checkBeforeSend(text, btn)
+  if (!ok) {
+    delete form.dataset.busy
+    return ta.focus()
+  }
   btn.disabled = true
   try {
     const res = await api(`/api/requests/${form.dataset.code}/messages`, { body: { text } })
@@ -861,6 +883,7 @@ $('myList').addEventListener('submit', async e => {
     toast(err.message)
   }
   btn.disabled = false
+  delete form.dataset.busy
 })
 
 async function findByCode() {

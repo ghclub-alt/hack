@@ -205,3 +205,52 @@ function setupInstall(o) {
 
   window.addEventListener('appinstalled', () => { box.hidden = true })
 }
+
+// ---------- 답장 칸: Enter = 보내기, Shift+Enter = 줄바꿈 ----------
+// 한글은 마지막 글자가 "조합 중"일 때 Enter 누르면 keydown이 isComposing=true(키코드 229)로 와서
+// 그냥 두면 브라우저가 줄바꿈을 넣어버림. 그래서
+//   1) 조합 중 Enter도 줄바꿈은 막고, 조합 끝나면(compositionend) 보냄
+//   2) 폰 키보드는 keydown에 Enter 정보가 없을 때가 있어서 beforeinput(줄바꿈 들어가기 직전)에서도 막음
+//   3) 크롬은 조합 끝난 뒤 Enter keydown이 한 번 더 와서, 0.4초 안에 두 번은 안 보냄
+function enterToSend(root, selector, send) {
+  let shift = false
+  let waitCompose = null
+  let lastSend = 0
+
+  const fire = ta => {
+    if (Date.now() - lastSend < 400) return
+    lastSend = Date.now()
+    send(ta)
+  }
+  const isBox = el => el && el.matches && el.matches(selector)
+
+  root.addEventListener('keydown', e => {
+    if (!isBox(e.target)) return
+    shift = e.shiftKey
+    const enter = e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter'
+    if (!enter || e.shiftKey) return
+    e.preventDefault()
+    if (e.isComposing || e.keyCode === 229) waitCompose = e.target
+    else fire(e.target)
+  })
+
+  root.addEventListener('beforeinput', e => {
+    if (!isBox(e.target)) return
+    if (e.inputType !== 'insertLineBreak' && e.inputType !== 'insertParagraph') return
+    if (shift) return // Shift+Enter는 줄바꿈 그대로
+    e.preventDefault()
+    if (e.isComposing) waitCompose = e.target
+    else fire(e.target)
+  })
+
+  root.addEventListener('compositionend', e => {
+    if (!waitCompose || e.target !== waitCompose) return
+    const ta = waitCompose
+    waitCompose = null
+    setTimeout(() => fire(ta), 0) // 조합된 글자가 칸에 들어간 다음에
+  })
+
+  root.addEventListener('keyup', e => {
+    if (e.key === 'Shift') shift = false
+  })
+}

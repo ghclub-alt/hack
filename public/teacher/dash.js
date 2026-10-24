@@ -112,7 +112,9 @@ async function refresh() {
     renderKpis(mood)
     renderDayChart(mood)
     renderWeek(mood)
-    renderReqs()
+    // 답장 쓰는 중이면 목록은 나중에 (다시 그리면 쓰던 칸이 바뀌어서 한글 조합 중인 글자가 날아감)
+    if (typingReply()) pendingReqs = true
+    else renderReqs()
     notifyNew()
   } catch (e) {
     if (e.status === 401) kickOut()
@@ -472,12 +474,31 @@ function renderReqs() {
   })
 }
 
-// Enter 누르면 답장 보내기, Shift+Enter는 줄바꿈 (한글 조합 중이면 무시)
-$('reqList').addEventListener('keydown', e => {
-  const ta = e.target.closest('.reply-box textarea')
-  if (!ta || e.key !== 'Enter' || e.shiftKey || e.isComposing || e.keyCode === 229) return
-  e.preventDefault()
-  ta.closest('.req').querySelector('button[data-act=reply]').click()
+// ---------- 답장 쓰는 중인지 ----------
+let pendingReqs = false
+let composingNow = false
+document.addEventListener('compositionstart', () => { composingNow = true })
+document.addEventListener('compositionend', () => { composingNow = false })
+
+function typingReply() {
+  const a = document.activeElement
+  return !!(a && a.matches && a.matches('.reply-box textarea') && (a.value || composingNow))
+}
+
+// 칸에서 나가면 밀린 거 그리기
+$('reqList').addEventListener('focusout', () => {
+  setTimeout(() => {
+    if (pendingReqs && !typingReply()) {
+      pendingReqs = false
+      renderReqs()
+    }
+  }, 0)
+})
+
+// Enter 누르면 답장 보내기, Shift+Enter는 줄바꿈 (한글 조합 처리는 common.js)
+enterToSend($('reqList'), '.reply-box textarea', ta => {
+  const btn = ta.closest('.req').querySelector('button[data-act=reply]')
+  if (!btn.disabled) btn.click()
 })
 
 // 답장 칸 눌렀을 때만 빠른 답장 펼침
@@ -506,7 +527,8 @@ $('reqList').addEventListener('click', async e => {
     if (btn.dataset.act === 'reply') {
       const ta = btn.closest('.req').querySelector('textarea')
       if (!ta.value.trim()) return ta.focus()
-      await api(`/api/requests/${code}/reply`, { body: { reply: ta.value } })
+      btn.disabled = true // 두 번 안 가게
+      await api(`/api/requests/${code}/reply`, { body: { reply: ta.value.trim() } }).finally(() => { btn.disabled = false })
       ta.value = ''
       toast('답장 보냈어요')
     } else if (btn.dataset.act === 'warn') {

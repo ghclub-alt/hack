@@ -237,20 +237,6 @@ student.get('/api/requests/:code', (req, res) => {
   res.json(forStudent(r))
 })
 
-// 학생이 내 이야기 지우기
-// 내 목록에서는 없어지고 더 대화 못 함. 근데 위험한 신고가 같이 사라지면 안 돼서
-// 선생님 쪽에는 "학생이 지움"으로 남겨둠 (선생님이 완전히 지울 수 있음)
-student.post('/api/requests/:code/delete', (req, res) => {
-  const r = findReq(req.params.code)
-  if (!r || r.studentDeleted) return res.status(404).json({ error: '없는 번호' })
-  r.studentDeleted = Date.now()
-  r.locked = true
-  r.messages.push({ from: 'teacher', kind: 'info', text: '학생이 이 이야기를 지웠어요.', at: Date.now() })
-  save()
-  changed(r)
-  res.json({ ok: true })
-})
-
 // 학생이 대화 이어가기
 student.post('/api/requests/:code/messages', async (req, res) => {
   const r = findReq(req.params.code)

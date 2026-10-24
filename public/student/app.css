@@ -785,18 +785,4 @@ mark {
 .ai-why-line { font-size: 13.5px; color: var(--forest) !important; margin: -4px 0 10px; display: flex; gap: 4px; align-items: center; justify-content: center; }
 .modal-sos { margin: 14px 0 4px; }
 
-.story-del {
-  align-self: center;
-  margin-top: 4px;
-  background: none;
-  border: none;
-  font-size: 12.5px;
-  color: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-.story-del:hover { color: var(--bad); }
+.thread-msgs { display: flex; flex-direction: column; gap: 8px; }

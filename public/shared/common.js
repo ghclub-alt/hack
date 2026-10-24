@@ -70,7 +70,7 @@ function face(v, size = 40) {
   const m = moodOf(v)
   const tear = v === 5 ? `<path d="M16.6 10.6 q.9 1.4 0 2.1 q-.9-.7 0-2.1z" fill="#cfe6ff" stroke="none"/>` : ''
   return `<svg class="face" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">
-    <circle cx="12" cy="12" r="10.6" fill="${m.color}" stroke="#1d1b18" stroke-width="1.5"/>
+    <circle cx="12" cy="12" r="10.6" fill="${m.color}" stroke="#26302b" stroke-width="1.5"/>
     <g fill="${m.ink}"><circle cx="8.6" cy="9.6" r="1.25"/><circle cx="15.4" cy="9.6" r="1.25"/></g>
     <path d="${MOUTHS[v]}" fill="none" stroke="${m.ink}" stroke-width="1.6" stroke-linecap="round"/>
     ${tear}

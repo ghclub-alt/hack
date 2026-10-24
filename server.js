@@ -471,14 +471,60 @@ function onListenError(port) {
   }
 }
 
+// codespace면 학생 포트를 공개(Public)로 바꿔서 깃헙 로그인 없이 들어오게
+// 주소(https://codespace이름-3000.app.github.dev)는 codespace 안 지우면 계속 똑같음
+const { execFile } = require('child_process')
+
+function makePublic(tries = 2) {
+  const ports = [`${PORT}:public`]
+  // 선생님 화면은 기본으로 비공개 (깃헙 로그인한 사람만). 다른 폰에서도 열려면 TEACHER_PUBLIC=1
+  if (process.env.TEACHER_PUBLIC === '1') ports.push(`${TEACHER_PORT}:public`)
+
+  execFile('gh', ['codespace', 'ports', 'visibility', ...ports, '-c', process.env.CODESPACE_NAME], (err, stdout, stderr) => {
+    if (err && tries > 1) {
+      // 포트가 막 열린 참이면 실패할 때가 있어서 한 번 더
+      return setTimeout(() => makePublic(tries - 1), 4000)
+    }
+    console.log('')
+    if (err) {
+      console.log('학생 주소를 자동으로 공개로 못 바꿨어요. 직접 한 번만 바꿔주세요:')
+      console.log(`  아래 "포트(Ports)" 탭 → ${PORT} 오른쪽 클릭 → Port Visibility → Public`)
+      const why = err.code === 'ENOENT' ? 'gh 프로그램이 없어요' : String(stderr || err.message).trim().split('\n')[0]
+      if (why) console.log(`  (이유: ${why})`)
+    } else {
+      console.log('학생 주소를 공개로 바꿨어요. 깃헙 로그인 없이 누구나 들어올 수 있어요.')
+      if (process.env.TEACHER_PUBLIC === '1') console.log('선생님 주소도 공개예요. PIN 꼭 바꿔두기!')
+      else console.log('선생님 주소는 비공개 그대로예요 (깃헙 로그인한 사람만).')
+    }
+    showStudentQr()
+  })
+}
+
+function showStudentQr() {
+  const url = urlOf(PORT)
+  console.log('')
+  console.log('=== 학생 화면 고정 주소 (codespace 안 지우면 안 바뀜) ===')
+  require('qrcode-terminal').generate(url, { small: true }, code => console.log(code))
+  console.log(' ' + url)
+  console.log('')
+}
+
+let opened = 0
+function onOpen() {
+  opened += 1
+  if (opened < 2) return
+  if (process.env.CODESPACE_NAME && !process.env.SHIMPYO_SHARE) {
+    // 포트 연결될 시간 조금 주고
+    setTimeout(makePublic, 2000)
+  }
+}
+
 student.listen(PORT, () => {
   console.log(`학생 화면   → ${urlOf(PORT)}`)
+  onOpen()
 }).on('error', onListenError(PORT))
 
 teacher.listen(TEACHER_PORT, () => {
   console.log(`선생님 화면 → ${urlOf(TEACHER_PORT)}  (PIN: ${PIN})`)
-  if (process.env.CODESPACE_NAME && !process.env.SHIMPYO_SHARE) {
-    console.log('')
-    console.log('※ 위 주소는 깃헙 로그인해야 들어가져요. 다른 사람한테 보여줄 땐 npm run share 로 켜기!')
-  }
+  onOpen()
 }).on('error', onListenError(TEACHER_PORT))

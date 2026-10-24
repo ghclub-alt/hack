@@ -63,10 +63,8 @@ $('clsChip').onclick = () => {
   $('welcome').hidden = false
 }
 
-// ---------- SOS / 경고창 ----------
-$('sosBtn').onclick = () => { $('sosSheet').hidden = false }
-
-document.querySelectorAll('.sheet-bg, .modal-bg').forEach(bg => {
+// ---------- 경고창 ----------
+document.querySelectorAll('.modal-bg').forEach(bg => {
   bg.addEventListener('click', e => {
     if (e.target === bg || e.target.closest('[data-close]')) bg.hidden = true
   })

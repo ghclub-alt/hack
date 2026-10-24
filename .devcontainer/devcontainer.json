@@ -1,11 +1,15 @@
 {
   "name": "shimpyo",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
-  "forwardPorts": [3000],
+  "forwardPorts": [3000, 3001],
   "portsAttributes": {
     "3000": {
-      "label": "쉼표",
+      "label": "쉼표 학생",
       "onAutoForward": "notify"
+    },
+    "3001": {
+      "label": "쉼표 선생님",
+      "onAutoForward": "silent"
     }
   },
   "postCreateCommand": "npm install && bash scripts/install-tunnel.sh",

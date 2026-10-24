@@ -3,6 +3,8 @@
 // 내 정보는 그냥 폰에 저장 (id는 랜덤이라 누군지 모름)
 let me = JSON.parse(localStorage.getItem('shimpyo_me') || 'null')
 
+if (me && !me.seen) me.seen = {} // 예전에 만든 정보엔 없어서
+
 function saveMe() {
   localStorage.setItem('shimpyo_me', JSON.stringify(me))
 }
@@ -18,6 +20,9 @@ function go(name) {
     b.classList.toggle('on', b.dataset.page === name)
   })
   window.scrollTo(0, 0)
+  // 새로고침해도 보던 화면 그대로
+  try { sessionStorage.setItem('shimpyo_page', name) } catch (e) {}
+  if (name === 'help') renderMine()
 }
 
 document.querySelectorAll('.tab-btn').forEach(b => {
@@ -42,11 +47,13 @@ $('btnSetup').onclick = () => {
       id: Math.random().toString(36).slice(2) + Date.now().toString(36),
       cls,
       codes: [],
+      seen: {},
     }
   }
   saveMe()
   $('welcome').hidden = true
   renderHome()
+  renderMine()
 }
 
 $('clsChip').onclick = () => {
@@ -323,13 +330,71 @@ document.querySelectorAll('input[name=want]').forEach(r => {
 })
 
 // 쓰는 중에 위험한 말 나오면 바로 연락처 보여줌
-$('helpText').addEventListener('input', () => {
+function onHelpText() {
   const t = $('helpText').value
   $('cnt').textContent = t.length
   const danger = findDanger(t).length > 0
   if (danger && $('dangerInline').hidden) $('dangerInline').hidden = false
   if (!danger) $('dangerInline').hidden = true
-})
+}
+$('helpText').addEventListener('input', onHelpText)
+
+// ---------- 임시 저장 ----------
+// 쓰다가 새로고침하거나 실수로 나가도 안 날아가게
+const DRAFT_KEY = 'shimpyo_draft'
+
+function saveDraft() {
+  const type = document.querySelector('input[name=type]:checked')
+  const d = {
+    type: type ? type.value : '',
+    text: $('helpText').value,
+    want: document.querySelector('input[name=want]:checked').value,
+    name: $('helpName').value,
+  }
+  try {
+    if (!d.type && !d.text.trim() && !d.name) {
+      localStorage.removeItem(DRAFT_KEY)
+      $('draftNote').hidden = true
+      return
+    }
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(d))
+    $('draftNote').hidden = false
+  } catch (e) {
+    // 저장 막힌 브라우저면 그냥 넘어감
+  }
+}
+
+function loadDraft() {
+  let d = null
+  try {
+    d = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null')
+  } catch (e) {}
+  if (!d) return
+
+  document.querySelectorAll('input[name=type]').forEach(r => { r.checked = r.value === d.type })
+  document.querySelectorAll('input[name=want]').forEach(r => { r.checked = r.value === d.want })
+  $('helpText').value = d.text || ''
+  $('helpName').value = d.name || ''
+  $('nameWrap').hidden = d.want !== 'meet'
+  onHelpText()
+  $('draftNote').hidden = false
+}
+
+function clearDraft() {
+  try { localStorage.removeItem(DRAFT_KEY) } catch (e) {}
+  $('draftNote').hidden = true
+}
+
+$('helpForm').addEventListener('input', saveDraft)
+$('helpForm').addEventListener('change', saveDraft)
+
+$('btnDraftClear').onclick = () => {
+  if (!confirm('쓰던 거 지울까?')) return
+  $('helpForm').reset()
+  $('nameWrap').hidden = true
+  onHelpText()
+  clearDraft()
+}
 
 $('helpForm').onsubmit = async e => {
   e.preventDefault()
@@ -354,9 +419,10 @@ $('helpForm').onsubmit = async e => {
     $('nameWrap').hidden = true
     $('dangerInline').hidden = true
     $('cnt').textContent = 0
+    clearDraft()
 
     showTicket(res.code, res.danger)
-    renderMyCodes()
+    renderMine()
   } catch (err) {
     toast(err.message)
   }
@@ -393,28 +459,25 @@ function showTicket(code, urgent) {
   }
 }
 
-function renderMyCodes() {
-  const box = $('myCodes')
-  if (!me || !me.codes.length) {
-    box.innerHTML = ''
-    return
-  }
-  box.innerHTML = '<span class="hint">내가 보낸 거</span>' +
-    me.codes.slice().reverse().map(c => `<button data-code="${c}">${c}</button>`).join('')
-  box.querySelectorAll('button').forEach(b => {
-    b.onclick = () => showReq(b.dataset.code)
-  })
+// ---------- 내가 보낸 이야기 ----------
+// 접수번호는 폰에 저장해두고, 열 때마다 서버에서 상태 다시 받아옴
+function isFresh(r) {
+  return !!r.reply && me.seen[r.code] !== r.repliedAt
 }
 
-async function showReq(code) {
-  const out = $('findResult')
-  code = code.trim().toUpperCase()
-  if (!code) return
-
-  try {
-    const r = await api('/api/requests/' + encodeURIComponent(code))
-    out.innerHTML = `<div class="thread">
-      <div class="thread-meta"><span class="st st-${r.status}">${STATUS[r.status]}</span> ${r.code} · ${esc(r.type)} · ${timeAgo(r.at)}</div>
+function storyHtml(r) {
+  const fresh = isFresh(r)
+  const short = r.text.length > 26 ? r.text.slice(0, 25) + '…' : r.text
+  return `<details class="story ${fresh ? 'fresh' : ''}" data-code="${r.code}" ${fresh ? 'open' : ''}>
+    <summary>
+      <span class="story-top">
+        <span class="st st-${r.status}">${STATUS[r.status]}</span>
+        ${fresh ? '<span class="new-badge">새 답장</span>' : ''}
+        <span class="story-meta">${r.code} · ${esc(r.type)} · ${timeAgo(r.at)}</span>
+      </span>
+      <span class="story-sum">${esc(short)}</span>
+    </summary>
+    <div class="thread">
       <div class="msg mine"><div class="bubble">${esc(r.text)}</div></div>
       ${r.reply
         ? `<div class="msg">
@@ -422,15 +485,85 @@ async function showReq(code) {
             <div><span class="who">선생님</span><div class="bubble">${esc(r.reply)}</div></div>
           </div>`
         : `<div class="waiting"><span class="dots"><i></i><i></i><i></i></span> 선생님이 아직 확인 중이야</div>`}
-    </div>`
+    </div>
+  </details>`
+}
+
+async function renderMine() {
+  if (!me) return
+  const box = $('myList')
+  if (!me.codes.length) {
+    box.innerHTML = '<p class="hint">아직 보낸 이야기가 없어. 보내면 새로고침해도 여기 계속 남아 있어.</p>'
+    $('replyBox').hidden = true
+    return
+  }
+
+  const codes = me.codes.slice().reverse()
+  const got = await Promise.all(codes.map(c =>
+    api('/api/requests/' + encodeURIComponent(c)).catch(e => (e.status === 404 ? { gone: c } : null))
+  ))
+
+  // 서버에서 지워진 번호는 목록에서도 뺌
+  const gone = got.filter(r => r && r.gone).map(r => r.gone)
+  if (gone.length) {
+    me.codes = me.codes.filter(c => !gone.includes(c))
+    saveMe()
+  }
+
+  const list = got.filter(r => r && !r.gone)
+  if (!list.length) {
+    box.innerHTML = got.some(r => r === null)
+      ? '<p class="hint">지금 서버랑 연결이 안 돼서 못 불러왔어. 잠시 후에 다시 와줘.</p>'
+      : '<p class="hint">아직 보낸 이야기가 없어. 보내면 새로고침해도 여기 계속 남아 있어.</p>'
+    $('replyBox').hidden = true
+    return
+  }
+
+  // 펼쳐둔 거는 다시 그려도 펼친 채로
+  const opened = [...box.querySelectorAll('details[open]')].map(d => d.dataset.code)
+  box.innerHTML = list.map(storyHtml).join('')
+  box.querySelectorAll('details.story').forEach(d => {
+    if (opened.includes(d.dataset.code)) d.open = true
+  })
+
+  // 이 화면 보고 있으면 답장 읽은 걸로 (배지는 이번엔 그대로 보여줌)
+  // toggle 이벤트로 하면 open 붙은 채로 그려질 때도 불려서 안 씀
+  if (!$('page-help').hidden) {
+    list.filter(isFresh).forEach(r => { me.seen[r.code] = r.repliedAt })
+    saveMe()
+  }
+  updateReplyBox(list)
+}
+
+// 홈에 "답장 왔어" 띄우기
+function updateReplyBox(list) {
+  const n = list.filter(isFresh).length
+  $('replyBox').hidden = n === 0
+  $('replyText').textContent = n > 1
+    ? `답장이 ${n}개 왔어. 확인해볼래?`
+    : '내가 보낸 이야기에 답장이 왔어. 확인해볼래?'
+}
+
+async function findByCode() {
+  const code = $('codeInput').value.trim().toUpperCase()
+  if (!code) return
+  try {
+    await api('/api/requests/' + encodeURIComponent(code))
+    if (!me.codes.includes(code)) {
+      me.codes.push(code)
+      saveMe()
+    }
+    $('codeInput').value = ''
+    $('findMsg').textContent = '찾았어! 위 목록에 넣어뒀어.'
+    renderMine()
   } catch (e) {
-    out.innerHTML = '<div class="thread"><p class="hint">그 번호는 없어. 다시 확인해줘.</p></div>'
+    $('findMsg').textContent = '그 번호는 없어. 다시 확인해줘.'
   }
 }
 
-$('btnFind').onclick = () => showReq($('codeInput').value)
+$('btnFind').onclick = findByCode
 $('codeInput').addEventListener('keydown', e => {
-  if (e.key === 'Enter') showReq($('codeInput').value)
+  if (e.key === 'Enter') findByCode()
 })
 
 // ---------- 봤을 때 ----------
@@ -443,4 +576,12 @@ $('guideList').innerHTML = GUIDE.map((g, i) => `
 // ---------- 시작 ----------
 if (!me) $('welcome').hidden = false
 renderHome()
-renderMyCodes()
+loadDraft()
+renderMine()
+
+let lastPage = null
+try { lastPage = sessionStorage.getItem('shimpyo_page') } catch (e) {}
+if (lastPage && $('page-' + lastPage)) go(lastPage)
+
+// 선생님 답장 왔는지 1분마다 확인
+setInterval(renderMine, 60000)

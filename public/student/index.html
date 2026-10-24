@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#f4efe4">
+  <meta name="theme-color" content="#f6f2ea">
   <title>쉼표, 잠깐 쉬어가도 괜찮아</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&family=Jua&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="/shared/base.css">
   <link rel="stylesheet" href="app.css">
 </head>
@@ -29,7 +29,7 @@
           <h1 id="helloText">안녕</h1>
         </div>
 
-        <div class="card mood-card tape">
+        <div class="card mood-card">
           <div class="card-hd">
             <h2>오늘 마음 날씨는?</h2>
             <span class="pill"><svg class="ic" width="13" height="13"><use href="#i-lock"/></svg> 익명</span>
@@ -37,6 +37,15 @@
           <div class="moods" id="moods"></div>
           <p class="mood-reply" id="moodMsg"></p>
           <div class="week" id="week"></div>
+        </div>
+
+        <div class="care reply-alert" id="replyBox" hidden>
+          <div class="care-ic"><svg class="ic" width="22" height="22"><use href="#i-chat"/></svg></div>
+          <div>
+            <b>선생님한테 답장이 왔어</b>
+            <p id="replyText">내가 보낸 이야기에 답장이 왔어. 확인해볼래?</p>
+            <button class="btn go small" data-go="help">답장 보기</button>
+          </div>
         </div>
 
         <div class="care" id="careBox" hidden>
@@ -75,7 +84,7 @@
       <!-- ============ 말 점검 ============ -->
       <section class="page" id="page-check" hidden>
         <div class="page-hd">
-          <h1>보내기 전에 <span class="hl">한번 더</span></h1>
+          <h1>보내기 전에 한번 더</h1>
           <p>단톡방이나 DM에 보내려는 말을 넣어봐. 이건 서버로 안 가고 내 폰에서만 확인해.</p>
         </div>
 
@@ -93,11 +102,17 @@
       <!-- ============ 도움 요청 ============ -->
       <section class="page" id="page-help" hidden>
         <div class="page-hd">
-          <h1><span class="hl">도움</span> 요청하기</h1>
+          <h1>도움 요청하기</h1>
           <p><svg class="ic" width="14" height="14"><use href="#i-lock"/></svg> 이름 안 써도 돼. 선생님은 반이랑 내용만 볼 수 있어.</p>
         </div>
 
         <form id="helpForm">
+          <div class="draft-note" id="draftNote" hidden>
+            <svg class="ic" width="16" height="16"><use href="#i-check"/></svg>
+            <span>쓰던 거 임시 저장돼 있어. 새로고침해도 안 날아가.</span>
+            <button type="button" id="btnDraftClear">지우기</button>
+          </div>
+
           <div class="card step">
             <div class="step-no">1</div>
             <div class="step-body">
@@ -165,20 +180,24 @@
         <div id="helpDone" hidden></div>
 
         <div class="card">
-          <h3 class="sec-title">답장 확인</h3>
-          <div class="code-row">
-            <input type="text" id="codeInput" placeholder="접수번호 4자리" maxlength="4" autocomplete="off">
-            <button class="btn ok" id="btnFind">확인</button>
-          </div>
-          <div class="codes" id="myCodes"></div>
-          <div id="findResult"></div>
+          <h3 class="sec-title">내가 보낸 이야기</h3>
+          <div id="myList"></div>
+
+          <details class="find">
+            <summary>다른 폰에서 보냈으면 접수번호로 찾기</summary>
+            <div class="code-row">
+              <input type="text" id="codeInput" placeholder="접수번호 4자리" maxlength="4" autocomplete="off">
+              <button class="btn ok" id="btnFind">찾기</button>
+            </div>
+            <p class="hint" id="findMsg"></p>
+          </details>
         </div>
       </section>
 
       <!-- ============ 봤을 때 ============ -->
       <section class="page" id="page-guide" hidden>
         <div class="page-hd">
-          <h1>이럴 땐 <span class="hl">이렇게</span></h1>
+          <h1>이럴 땐 이렇게</h1>
           <p>정답은 없어. 내가 할 수 있는 것부터 하나만.</p>
         </div>
         <div id="guideList"></div>
@@ -204,8 +223,8 @@
   <!-- 처음 왔을 때 -->
   <div class="welcome" id="welcome" hidden>
     <div class="welcome-in">
-      <small>우리 학교 마음 쉼터 ✎</small>
-      <div class="big-brand"><span class="hl">쉼표</span><span>,</span></div>
+      <small>우리 학교 마음 쉼터</small>
+      <div class="big-brand">쉼표<span>,</span></div>
       <p class="welcome-sub">잠깐 쉬어가도 괜찮아</p>
 
       <div class="card tape welcome-box">
@@ -224,7 +243,6 @@
       <button class="btn go big full" id="btnSetup">시작!</button>
       </div>
 
-      <p class="credit">○○중학교 ○학년 쉼표팀이 만들었습니다^^</p>
     </div>
   </div>
 

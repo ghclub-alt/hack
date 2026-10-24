@@ -1,0 +1,17 @@
+{
+  "name": "shimpyo",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": {
+      "label": "쉼표",
+      "onAutoForward": "notify"
+    }
+  },
+  "postCreateCommand": "npm install && bash scripts/install-tunnel.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": []
+    }
+  }
+}

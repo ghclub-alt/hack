@@ -106,11 +106,10 @@
    npm start
    ```
 
-그러면 학생 포트(3000)를 **공개(Public)** 로 바꾸고 고정 주소랑 QR을 보여줘요.
+그러면 학생 포트(3000)를 **공개(Public)** 로 바꾸고, **로그인 안 한 사람처럼 직접 들어가 봐서** 진짜 열리는지 확인해요.
 
 ```
-학생 주소를 공개로 바꿨어요. 깃헙 로그인 없이 누구나 들어올 수 있어요.
-선생님 주소는 비공개 그대로예요 (깃헙 로그인한 사람만).
+학생 주소 확인 완료! 깃헙 로그인 없이 들어가져요.
 
 === 학생 화면 고정 주소 (codespace 안 지우면 안 바뀜) ===
 (QR 코드)
@@ -119,24 +118,49 @@
 
 이 주소는 **codespace를 지우지 않는 한 계속 똑같아요.** QR 한 번 뽑아두면 대회 내내 써도 됨.
 
-### "자동으로 공개로 못 바꿨어요"가 나오면
+### "아직 깃헙 로그인해야 들어가져요"가 나오면
 
-codespace 권한 때문에 자동으로 안 될 때가 있어요. 그럼 한 번만 직접:
+학교/동아리 **조직(Organization) 설정이 공개 포트를 막고 있으면** 이렇게 돼요. 그럼 먼저 한 번만 직접 해보고:
 
 아래 **포트(Ports)** 탭 → `3000` 오른쪽 클릭 → **Port Visibility** → **Public**
 
-한 번 바꾸면 그 codespace에서는 계속 공개예요.
+Public이 안 눌리거나 눌러도 로그인 화면이 뜨면 **ngrok**으로 열어요 👇
+
+### ngrok으로 열기 (codespace 공개가 막혀 있을 때)
+
+한 번만 설정해두면 `npm start` 할 때 ngrok도 같이 켜져요.
+
+1. [ngrok](https://dashboard.ngrok.com) 가입 (구글 로그인 됨)
+2. **Your Authtoken** 메뉴에서 토큰 복사
+3. **Domains** 메뉴에서 무료 도메인 하나 받기 (`○○○.ngrok-free.app`) → 이거 있으면 **주소가 안 바뀜**
+4. `.env` 파일에 넣기
+
+   ```
+   NGROK_AUTHTOKEN=복사한토큰
+   NGROK_DOMAIN=○○○.ngrok-free.app
+   ```
+
+5. `npm start`
+
+```
+ngrok 켜짐! 깃헙 로그인 없이 누구나 들어올 수 있어요.
+=== 학생 화면 고정 주소 (ngrok 고정 도메인) ===
+(QR 코드)
+ https://○○○.ngrok-free.app
+```
+
+- 처음 들어가면 ngrok 안내 화면이 한 번 떠요 → **Visit Site** 누르면 됨
+- `ngrok이 없어요` 나오면 `bash scripts/install-tunnel.sh` 한 번
+- `이 ngrok 계정이 벌써 다른 데서 켜져 있어요` → 무료 계정은 한 군데서만 켜져요. 다른 터미널의 ngrok 끄기
+- 토큰은 `.env`에만! 깃헙에 올리면 안 돼요
 
 ### 선생님 화면은?
 
-선생님 포트(3001)는 일부러 비공개로 둬요. 깃헙 로그인한 사람(= codespace 주인)만 들어갈 수 있어서 더 안전해요.
-선생님 폰처럼 다른 기기에서도 열어야 하면
-
-```bash
-TEACHER_PUBLIC=1 TEACHER_PIN=0427 npm start
-```
-
-(이때는 PIN 꼭 바꾸기!)
+- **PIN이 1234 그대로면** 선생님 주소는 밖에서 안 열려요 (codespace 주인만 깃헙 로그인해서 들어감)
+- `.env`에서 **`TEACHER_PIN`을 바꾸면** 선생님 주소도 같이 열려요 (codespace 공개 / ngrok 둘 다). 선생님 폰이나 심사위원 노트북에서도 들어가짐
+- ngrok 선생님 주소는 무료 도메인이 하나뿐이라 **서버 켤 때마다 바뀌어요.** 터미널에 나오는 주소 쓰기
+- PIN을 10분에 5번 틀리면 잠깐 막혀요 (아무나 찍어서 못 들어오게)
+- 밖에서 열기 싫으면 `.env`에 `TEACHER_PUBLIC=0`
 
 ### 대회 날 체크리스트
 
@@ -146,6 +170,7 @@ TEACHER_PUBLIC=1 TEACHER_PIN=0427 npm start
 - [ ] **깃헙 로그인 안 된 폰**으로 학생 주소 들어가지는지 미리 확인
       (처음 들어갈 때 깃헙 안내 화면이 한 번 뜨면 계속하기 누르면 됨)
 - [ ] 선생님 PIN 바꾸기
+- [ ] codespace 공개가 안 되면 ngrok 토큰이랑 고정 도메인 `.env`에 넣어두기
 - [ ] 쓰던 codespace **지우지 않기** (지우면 주소 바뀜. 30일 넘게 안 쓰면 깃헙이 자동으로 지울 수 있어요)
 
 ### 예비: `npm run share` (cloudflare 임시 주소)
@@ -170,13 +195,7 @@ npm run share
 
 - `cloudflared가 없어요` → `bash scripts/install-tunnel.sh` 한 번 돌리기
 - `cloudflare 서버에 연결이 안 돼요` → 학교 와이파이가 막는 경우가 있어요. 폰 핫스팟으로 해보거나 ngrok 쓰기
-- ngrok: [ngrok 대시보드](https://dashboard.ngrok.com/get-started/your-authtoken)에서 토큰 받아서, `npm start` 켜둔 상태로 다른 터미널에서
-
-  ```bash
-  NGROK_AUTHTOKEN=토큰 npm run tunnel:ngrok
-  ```
-
-  (무료 계정에서 터널 두 개가 동시에 안 열리면 학생 화면 하나만이라도)
+- ngrok: 위에 [ngrok으로 열기](#ngrok으로-열기-codespace-공개가-막혀-있을-때) 보고 `.env`에 토큰 넣고 `npm start`
 
 ### 내 컴퓨터에서 돌릴 때
 
@@ -196,7 +215,9 @@ npm start
 | `PORT` | 3000 | 학생 화면 포트 |
 | `TEACHER_PORT` | 3001 | 선생님 화면 포트 |
 | `TEACHER_PIN` | 1234 | 선생님 화면 비밀번호 |
-| `TEACHER_PUBLIC` | (없음) | `1`이면 codespace에서 선생님 포트도 공개 |
+| `TEACHER_PUBLIC` | (없음) | 선생님 주소 밖에서 열기. 없으면 PIN 바꿨을 때만, `1`이면 항상, `0`이면 안 엶 |
+| `NGROK_AUTHTOKEN` | (없음) | 넣으면 `npm start` 할 때 ngrok도 켜짐 |
+| `NGROK_DOMAIN` | (없음) | ngrok 무료 고정 도메인 (학생 주소 안 바뀌게) |
 | `OPENAI_API_KEY` | (없음) | 넣으면 ChatGPT로 메시지 판단 |
 | `OPENAI_MODEL` | gpt-4o-mini | 쓸 모델 |
 

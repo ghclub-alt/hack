@@ -148,6 +148,7 @@ section { scroll-margin-top: 20px; }
 .chart .ylab { font-size: 11px; fill: var(--ink-2); }
 .chart .xlab { font-size: 13px; fill: var(--ink-2); }
 .chart .xlab.today { fill: var(--ink); font-weight: 700; }
+.chart .xlab.future { opacity: .45; }
 .chart .hit { fill: transparent; cursor: pointer; }
 .chart .col { transition: opacity .15s; }
 .chart .col.dim { opacity: .4; }

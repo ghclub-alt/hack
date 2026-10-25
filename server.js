@@ -23,7 +23,7 @@ try {
 const ai = require('./ai')
 const crypto = require('crypto')
 const { EventEmitter } = require('events')
-const { db, load, save, reset, today, makeCode } = require('./db')
+const { db, load, save, reset, today, fromMonday, makeCode } = require('./db')
 const { TYPES, findDanger, findBad, isQuoted, atTeacherBad } = require('./public/shared/data')
 
 const PORT = Number(process.env.PORT) || 3000
@@ -129,6 +129,7 @@ function reviewWords(text) {
     insultTeacher: atTeacherBad(text).length > 0,
     profanity: findBad(text).length > 0,
     quoted: isQuoted(text),
+    situation: false, // 단어 목록으로는 구분 못 함
     danger: findDanger(text).length > 0,
     prank: false,
     reason: '',
@@ -145,9 +146,13 @@ function badOf(text, v) {
   return v.by === 'ai' && !v.profanity ? [] : findBad(text)
 }
 
-// 바로 경고 줄지: 학생이 직접 쓴 욕이면 (누가 한 말 옮긴 건 빼고)
-function shouldWarn(v) {
-  return v.insultTeacher || (v.profanity && !v.quoted)
+// 바로 경고 줄지
+// - 처음 보내는 사연(상황 설명)은 욕이 섞여도 경고 안 함. 선생님한테 욕한 것만
+// - 대화는 학생이 직접 쓴 욕이면 경고. 누가 한 말 옮긴 거나 있었던 일 설명하다 나온 건 빼고
+function shouldWarn(v, story = false) {
+  if (v.insultTeacher) return true
+  if (story) return false
+  return v.profanity && !v.quoted && !v.situation
 }
 
 // 욕 쓰면 자동 경고
@@ -221,7 +226,7 @@ student.post('/api/requests', async (req, res) => {
     reply: '',
     at: now,
   }
-  const warned = shouldWarn(v)
+  const warned = shouldWarn(v, true)
   if (warned) autoWarn(r, v)
   db.reqs.push(r)
   save()
@@ -288,7 +293,7 @@ student.post('/api/review', async (req, res) => {
   if (!text) return res.status(400).json({ error: '내용이 비었어' })
   const useAi = ai.enabled() && !tooMany(req)
   const v = useAi ? await review(text) : await reviewWords(text)
-  res.json({ ...v, words: badOf(text, v), warn: shouldWarn(v) })
+  res.json({ ...v, words: badOf(text, v), warn: shouldWarn(v, req.body.story === true) })
 })
 
 // 말 점검을 ChatGPT로 (키 있을 때만). 저장은 안 하고 결과만 돌려줌
@@ -343,9 +348,11 @@ teacher.use('/api', (req, res, next) => {
   next()
 })
 
+// 이번 주 = 월요일부터 오늘까지
 function weekMoods(cls) {
-  const from = today(6)
-  return db.moods.filter(m => m.date >= from && (!cls || m.cls === cls))
+  const from = today(fromMonday())
+  const to = today()
+  return db.moods.filter(m => m.date >= from && m.date <= to && (!cls || m.cls === cls))
 }
 
 function reqsOf(cls) {
@@ -359,11 +366,13 @@ teacher.get('/api/moods', (req, res) => {
   list.forEach(m => counts[m.mood - 1]++)
 
   const days = []
-  for (let i = 6; i >= 0; i--) {
-    const d = today(i)
+  // 월 화 수 목 금 토 일. 아직 안 온 날은 future
+  const mo = fromMonday()
+  for (let i = 0; i < 7; i++) {
+    const d = today(mo - i)
     const c = [0, 0, 0, 0, 0]
     list.filter(m => m.date === d).forEach(m => c[m.mood - 1]++)
-    days.push({ date: d, counts: c })
+    days.push({ date: d, counts: c, future: i > mo })
   }
   res.json({ total: list.length, counts, days })
 })

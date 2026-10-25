@@ -81,6 +81,7 @@ const JUDGE_PROMPT = `너는 학교 상담 앱 "쉼표"에서 학생이 선생�
   "insult_teacher": 학생이 선생님한테 직접 욕하거나 모욕하면 true. 다른 사람이 한 욕을 옮겨 적은 건 false,
   "profanity": 욕설이나 비속어가 들어 있으면 true (옮긴 말이어도 true),
   "quoted": 욕이 다른 사람이 한 말을 옮긴 거면 true,
+  "situation": 학생이 겪은 일이나 그때 기분을 설명하다가 욕이 섞인 거면 true (대화 상대한테 하는 욕이 아님),
   "danger": 자해, 자살 생각, 폭행, 협박, 돈 뺏기, 사진 유포, 성적인 괴롭힘처럼 어른이 바로 도와야 하는 위험 신호면 true,
   "prank": 진지한 고민이 아니라 장난이나 도배로 보이면 true,
   "reason": 선생님이 볼 한국어 한 줄 설명 (40자 이내)
@@ -90,6 +91,8 @@ const JUDGE_PROMPT = `너는 학교 상담 앱 "쉼표"에서 학생이 선생�
 - 괴롭힘 당한 학생이 들은 욕을 그대로 적는 경우가 많아. 이건 insult_teacher가 아니고 quoted는 true야.
 - "죽어라 공부했다", "웃겨 죽어" 같은 말버릇은 욕이 아니야 (profanity false).
 - 학생이 직접 쓴 욕이면 상대가 누구든 profanity true, quoted false.
+- "그때 진짜 ㅈ같았어요", "걔 때문에 개빡쳐요"처럼 있었던 일을 털어놓다 나온 욕은 situation true.
+  "ㅅㅂ 왜 답 안 해", 아무 이유 없이 욕만 쓴 거, 장난은 situation false.
 - 애매하면 insult_teacher는 false로. 학생이 억울하게 경고 받으면 안 돼.
 - danger는 조금이라도 걱정되면 true로. 놓치는 게 더 위험해.`
 
@@ -100,6 +103,7 @@ const judge = cached(async t => {
     insultTeacher: v.insult_teacher === true,
     profanity: v.profanity === true,
     quoted: v.quoted === true,
+    situation: v.situation === true,
     danger: v.danger === true,
     prank: v.prank === true,
     reason: String(v.reason || '').slice(0, 80),

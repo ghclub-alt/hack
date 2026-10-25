@@ -95,9 +95,11 @@ function clsName(cls) {
 
 async function refresh() {
   const now = new Date()
-  const from = new Date(now)
-  from.setDate(from.getDate() - 6)
-  $('crumb').textContent = `${now.getMonth() + 1}월 ${now.getDate()}일 ${DAY_NAMES[now.getDay()]}요일 · 최근 7일 (${from.getMonth() + 1}/${from.getDate()}~)`
+  const mon = new Date(now)
+  mon.setDate(mon.getDate() - (now.getDay() + 6) % 7)
+  const sun = new Date(mon)
+  sun.setDate(sun.getDate() + 6)
+  $('crumb').textContent = `${now.getMonth() + 1}월 ${now.getDate()}일 ${DAY_NAMES[now.getDay()]}요일 · 이번 주 (${mon.getMonth() + 1}/${mon.getDate()}~${sun.getMonth() + 1}/${sun.getDate()})`
   $('clsTitle').textContent = clsName(curCls)
 
   try {
@@ -262,7 +264,7 @@ function renderDayChart(s) {
   const top = Math.ceil(max / step) * step
   const y = v => T + ph - (v / top) * ph
 
-  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="최근 7일 요일별 기분 기록">`
+  let svg = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="이번 주 월~일 요일별 기분 기록">`
 
   svg += '<g class="grid">'
   for (let v = 0; v <= top; v += step) {
@@ -296,8 +298,9 @@ function renderDayChart(s) {
     }
     svg += '</g>'
 
-    const isToday = i === 6
-    svg += `<text class="xlab ${isToday ? 'today' : ''}" x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${isToday ? '오늘' : dayName(d.date) + ' ' + Number(d.date.slice(8))}</text>`
+    const isToday = d.date === daysAgo(0)
+    svg += `<text class="xlab ${isToday ? 'today' : ''} ${d.future ? 'future' : ''}" x="${x + bw / 2}" y="${H - 8}" text-anchor="middle">${isToday ? '오늘' : dayName(d.date) + ' ' + Number(d.date.slice(8))}</text>`
+    if (d.future) return // 아직 안 온 날은 툴팁 없음
     svg += `<rect class="hit" data-i="${i}" x="${L + slot * i}" y="${T}" width="${slot}" height="${ph}"/>`
   })
   svg += '</svg>'

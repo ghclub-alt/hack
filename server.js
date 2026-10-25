@@ -44,6 +44,8 @@ function makeApp(folder) {
   app.use(express.json({ limit: '20kb' }))
   // 인터넷 다시 연결됐나 확인용 (로그인 필요 없음)
   app.get('/api/ping', (req, res) => res.json({ ok: true }))
+  // 이 주소가 학생 건지 선생님 건지 (터널 주소 확인용)
+  app.get('/api/app', (req, res) => res.json({ app: folder }))
   // 서비스 워커는 맨 위 주소에 있어야 전체 화면을 맡을 수 있음
   app.get('/sw.js', (req, res) => {
     res.set('Cache-Control', 'no-cache')
@@ -706,7 +708,7 @@ function onListenError(port) {
 // codespace면 학생 포트를 공개(Public)로 바꿔서 깃헙 로그인 없이 들어오게
 // 주소(https://codespace이름-3000.app.github.dev)는 codespace 안 지우면 계속 똑같음
 // 학교/조직 설정 때문에 공개가 막혀 있으면 ngrok으로 (아래 startNgrok)
-const { execFile, execSync, spawn } = require('child_process')
+const { execFile, execFileSync, execSync, spawn } = require('child_process')
 const os = require('os')
 
 // 선생님 주소도 밖에서 열지: PIN 바꿨으면 열고, 1234 그대로면 안 엶 (아무나 들어올 수 있으니까)
@@ -801,6 +803,9 @@ function hasNgrok() {
   }
 }
 
+// ngrok 무료 계정은 도메인이 하나뿐이라 학생 화면만 ngrok으로 엶
+// (둘 다 열면 같은 주소에 학생/선생님이 겹쳐서 선생님 화면만 뜨는 일이 생김)
+// 선생님 화면은 cloudflare 임시 주소로 따로 엶
 function startNgrok() {
   if (!hasNgrok()) {
     console.log('')
@@ -810,13 +815,15 @@ function startNgrok() {
     return
   }
 
+  // 전에 켜놓고 안 꺼진 쉼표 ngrok 있으면 끄기 (같은 주소 붙잡고 있으면 새로 못 엶)
+  try { execFileSync('pkill', ['-f', 'ngrok start --all --config .*shimpyo-ngrok-']) } catch (e) {}
+
   const domain = (process.env.NGROK_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/+$/, '')
   let conf = 'version: "2"\n'
   conf += `authtoken: ${JSON.stringify(process.env.NGROK_AUTHTOKEN)}\n`
   conf += 'tunnels:\n'
   conf += `  student:\n    proto: http\n    addr: ${PORT}\n`
   if (domain) conf += `    domain: ${JSON.stringify(domain)}\n`
-  if (TEACHER_OPEN) conf += `  teacher:\n    proto: http\n    addr: ${TEACHER_PORT}\n`
   // 토큰 들어 있어서 나만 읽게 만들고, 켜지면 바로 지움
   const file = path.join(os.tmpdir(), `shimpyo-ngrok-${process.pid}.yml`)
   fs.writeFileSync(file, conf, { mode: 0o600 })
@@ -824,12 +831,11 @@ function startNgrok() {
   console.log('')
   console.log('ngrok 켜는 중...')
   ngrokProc = spawn('ngrok', ['start', '--all', '--config', file, '--log', 'stdout', '--log-format', 'json'])
-  const urls = {}
   let shown = false
   let buf = ''
   let lastErr = ''
   const timer = setTimeout(() => {
-    if (!shown) console.log('ngrok 주소를 못 받았어요' + (lastErr ? `: ${lastErr}` : '. 인터넷 연결 확인해보세요'))
+    if (!shown) console.log('ngrok 주소를 못 받았어요' + (lastErr ? `: ${ngrokWhy(lastErr)}` : '. 인터넷 연결 확인해보세요'))
   }, 20000)
 
   ngrokProc.stdout.on('data', d => {
@@ -840,12 +846,11 @@ function startNgrok() {
       let j
       try { j = JSON.parse(line) } catch (e) { return }
       if (j.lvl === 'eror' || j.lvl === 'crit') lastErr = j.err || j.msg
-      if (j.msg === 'started tunnel' && j.url) urls[j.name] = j.url
-      if (!shown && urls.student && (!TEACHER_OPEN || urls.teacher)) {
+      if (!shown && j.msg === 'started tunnel' && j.url) {
         shown = true
         clearTimeout(timer)
         fs.rm(file, { force: true }, () => {})
-        showNgrok(urls, domain)
+        showNgrok(j.url, domain)
       }
     })
   })
@@ -876,22 +881,53 @@ function ngrokWhy(err) {
   if (!err) return ''
   if (/ERR_NGROK_105|ERR_NGROK_107|authtoken/i.test(err)) return 'NGROK_AUTHTOKEN이 틀렸어요. 대시보드에서 다시 복사해주세요'
   if (/ERR_NGROK_108/.test(err)) return '이 ngrok 계정이 벌써 다른 데서 켜져 있어요. 다른 터미널/컴퓨터의 ngrok을 끄고 다시'
+  if (/ERR_NGROK_334|already online/i.test(err)) return '이 주소에 벌써 다른 ngrok이 붙어 있어요. 다른 터미널의 ngrok(npm run tunnel:ngrok 등)이나 ngrok 대시보드 Endpoints에서 끄고 다시'
   if (/ERR_NGROK_320[0-9]|domain/i.test(err)) return `NGROK_DOMAIN이 이 계정 도메인이 아니에요. ngrok 대시보드 Domains에 있는 그대로 넣기 (${err.split('\n')[0]})`
-  if (/ERR_NGROK_324|limited to 1|simultaneous/i.test(err)) return '무료 계정이라 터널 개수가 모자라요. .env에 TEACHER_PUBLIC=0 넣고 학생 것만 열기'
   return err.split('\n')[0]
 }
 
-function showNgrok(urls, domain) {
+// 주소에 들어가 보면 진짜 학생 화면이 나오는지
+async function whichApp(url) {
+  try {
+    const r = await fetch(url + '/api/app', { headers: { 'ngrok-skip-browser-warning': '1', accept: 'application/json' } })
+    return (await r.json()).app || ''
+  } catch (e) {
+    return ''
+  }
+}
+
+async function showNgrok(url, domain) {
   console.log('')
   console.log('ngrok 켜짐! 깃헙 로그인 없이 누구나 들어올 수 있어요.')
   console.log('(처음 들어가면 ngrok 안내 화면이 떠요 → Visit Site 누르면 됨)')
-  showQr(domain ? '학생 화면 고정 주소 (ngrok 고정 도메인)' : '학생 화면 (서버 다시 켜면 바뀜. NGROK_DOMAIN 넣으면 고정)', urls.student)
-  if (urls.teacher) {
-    console.log(`선생님 화면 → ${urls.teacher}  (선생님만! 서버 다시 켜면 주소 바뀜)`)
-  } else {
-    console.log('선생님 화면은 ngrok으로 안 열었어요 (PIN이 1234 그대로라서). .env에서 TEACHER_PIN 바꾸면 같이 열려요.')
-    if (process.env.CODESPACE_NAME) console.log(`  codespace 주인은 여기로 → ${urlOf(TEACHER_PORT)}`)
+  showQr(domain ? '학생 화면 고정 주소 (ngrok 고정 도메인)' : '학생 화면 (ngrok)', url)
+
+  const app = await whichApp(url)
+  if (app === 'teacher') {
+    console.log('!!! 이 주소에 선생님 화면이 떠요. 다른 데서 켠 ngrok이 같은 주소를 쓰고 있는 듯 !!!')
+    console.log('    ngrok 대시보드 → Endpoints 에서 다른 거 끄고, 다른 터미널의 ngrok도 끈 다음 npm start 다시')
+  } else if (app !== 'student') {
+    console.log('(학생 화면 확인은 못 했어요. 폰으로 한 번 열어보세요)')
   }
+  openTeacherOutside()
+}
+
+// 선생님 화면을 밖에서 열기: cloudflare 임시 주소 (켤 때마다 바뀜)
+async function openTeacherOutside() {
+  const cf = require('./scripts/cloudflare')
+  if (!TEACHER_OPEN) {
+    console.log('선생님 화면은 밖에서 안 열었어요 (PIN이 1234 그대로라서). .env에서 TEACHER_PIN 바꾸면 같이 열려요.')
+  } else if (!cf.hasCloudflared()) {
+    console.log('선생님 화면을 밖에서 열려면 cloudflared가 필요해요: bash scripts/install-tunnel.sh')
+  } else {
+    try {
+      const url = await cf.openTunnel(TEACHER_PORT)
+      console.log(`선생님 화면 → ${url}  (선생님만! 서버 다시 켜면 주소 바뀜)`)
+    } catch (e) {
+      console.log(`선생님 화면 주소 만들기 실패: ${e.message}`)
+    }
+  }
+  if (process.env.CODESPACE_NAME) console.log(`  codespace 주인은 여기로도 됨 → ${urlOf(TEACHER_PORT)}`)
   console.log('')
 }
 

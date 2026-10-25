@@ -28,22 +28,14 @@ if [ "$WHICH" = "ngrok" ]; then
     exit 1
   fi
 
-  # 터널 두 개 한 번에 열려고 설정 파일 만듦
-  CONF=$(mktemp --suffix=.yml)
-  cat > "$CONF" <<EOF
-version: "2"
-authtoken: $NGROK_AUTHTOKEN
-tunnels:
-  student:
-    proto: http
-    addr: $PORT
-  teacher:
-    proto: http
-    addr: $TEACHER_PORT
-EOF
-  echo "ngrok 화면에서 3000 → 학생, 3001 → 선생님 주소예요"
-  ngrok start --all --config "$CONF"
-  rm -f "$CONF"
+  # 무료 계정은 도메인이 하나라서 학생 화면만 엶 (둘 다 열면 같은 주소에 겹침)
+  # 선생님 화면은 npm run tunnel (cloudflare)로 따로
+  echo "ngrok으로 학생 화면만 열어요. 선생님 화면은 다른 터미널에서 npm run tunnel"
+  if [ -n "$NGROK_DOMAIN" ]; then
+    ngrok http "$PORT" --authtoken "$NGROK_AUTHTOKEN" --domain "$NGROK_DOMAIN"
+  else
+    ngrok http "$PORT" --authtoken "$NGROK_AUTHTOKEN"
+  fi
   exit 0
 fi
 

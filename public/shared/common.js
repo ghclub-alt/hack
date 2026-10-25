@@ -1,7 +1,8 @@
 // 학생/선생님 화면 둘 다 쓰는 함수들
 
 async function api(url, opt = {}) {
-  const headers = { 'Content-Type': 'application/json' }
+  // ngrok 무료 주소는 안내 화면이 끼어들 수 있어서 이 헤더 붙이면 건너뜀
+  const headers = { 'Content-Type': 'application/json', 'ngrok-skip-browser-warning': '1' }
   const token = sessionStorage.getItem('shimpyo_token')
   if (token) headers['x-token'] = token
 

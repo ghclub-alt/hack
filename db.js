@@ -35,6 +35,11 @@ function today(offset = 0) {
   return `${d.getFullYear()}-${m}-${day}`
 }
 
+// 오늘이 이번 주 월요일에서 며칠째인지 (월=0 ... 일=6)
+function fromMonday() {
+  return (new Date().getDay() + 6) % 7
+}
+
 // 헷갈리는 글자(0,O,1,I)는 뺌
 function makeCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
@@ -46,4 +51,4 @@ function makeCode() {
   return code
 }
 
-module.exports = { db, load, save, reset, today, makeCode }
+module.exports = { db, load, save, reset, today, fromMonday, makeCode }

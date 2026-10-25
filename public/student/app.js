@@ -119,14 +119,16 @@ async function renderMoods() {
     ? moodOf(todayMood.mood).reply
     : '하나만 누르면 끝. 누가 눌렀는지는 아무도 몰라.'
 
-  // 최근 7일
+  // 이번 주 월~일 (안 온 날은 흐리게)
+  const mo = (new Date().getDay() + 6) % 7
   let html = ''
-  for (let i = 6; i >= 0; i--) {
-    const d = daysAgo(i)
+  for (let i = 0; i < 7; i++) {
+    const d = daysAgo(mo - i)
     const rec = mine.find(m => m.date === d)
-    html += `<div class="day ${i === 0 ? 'today' : ''}">
+    const cls = i === mo ? 'today' : i > mo ? 'future' : ''
+    html += `<div class="day ${cls}">
       ${rec ? face(rec.mood, 22) : '<span class="blank"></span>'}
-      ${i === 0 ? '오늘' : dayName(d)}
+      ${i === mo ? '오늘' : dayName(d)}
     </div>`
   }
   $('week').innerHTML = html
@@ -558,9 +560,10 @@ function showTicket(code, urgent) {
 
 // ---------- 보내기 전에 검수 (AI 있으면 AI가) ----------
 // 직접 쓴 욕이면 보내자마자 경고 1번. 누가 한 말 옮긴 건 괜찮음
-async function reviewText(text) {
+// story: 처음 보내는 사연이면 true (상황 설명은 욕 섞여도 경고 안 함)
+async function reviewText(text, story) {
   try {
-    return await api('/api/review', { body: { text } })
+    return await api('/api/review', { body: { text, story } })
   } catch (e) {
     // 서버 안 되면 폰에서 단어 목록으로라도
     return {
@@ -568,7 +571,7 @@ async function reviewText(text) {
       words: findBad(text),
       insultTeacher: atTeacherBad(text).length > 0,
       danger: findDanger(text).length > 0,
-      warn: selfBad(text).length > 0,
+      warn: atTeacherBad(text).length > 0 || (!story && selfBad(text).length > 0),
       reason: '',
     }
   }
@@ -585,7 +588,7 @@ function confirmWarn(v) {
       ${words}
       ${v.by === 'ai' && v.reason ? `<p class="ai-why-line">${icon('sparkle', 13)} AI: ${esc(v.reason)}</p>` : ''}
       <p><b>이대로 보내면 바로 경고가 1번 쌓여.</b><br>경고 3번이면 이 대화는 닫혀.</p>
-      <p class="hint">누가 너한테 한 말이면 "걔가 ○○이라고 했어요"처럼 적어줘. 그건 경고 안 해.</p>
+      <p class="hint">누가 너한테 한 말이거나 있었던 일 설명하다 나온 말이면 "걔가 ○○이라고 했어요"처럼 적어줘. 그건 경고 안 해.</p>
       <div class="btns">
         <button class="btn go big full" id="badFix">고쳐 쓸게</button>
         <button class="btn ghost full" id="badSend">그래도 보낼게</button>
@@ -605,8 +608,9 @@ async function checkBeforeSend(text, btn) {
   const before = btn.innerHTML
   btn.disabled = true
   btn.classList.add('busy')
-  if (btn.type === 'submit' && btn.closest('#helpForm')) btn.innerHTML = `${icon('sparkle', 18)} 확인하는 중...`
-  const v = await reviewText(text)
+  const story = !!btn.closest('#helpForm')
+  if (btn.type === 'submit' && story) btn.innerHTML = `${icon('sparkle', 18)} 확인하는 중...`
+  const v = await reviewText(text, story)
   btn.innerHTML = before
   btn.classList.remove('busy')
   btn.disabled = false

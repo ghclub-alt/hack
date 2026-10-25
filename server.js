@@ -23,7 +23,7 @@ try {
 const ai = require('./ai')
 const crypto = require('crypto')
 const { EventEmitter } = require('events')
-const { db, load, save, reset, today, makeCode } = require('./db')
+const { db, load, save, reset, today, fromMonday, makeCode } = require('./db')
 const { TYPES, findDanger, findBad, isQuoted, atTeacherBad } = require('./public/shared/data')
 
 const PORT = Number(process.env.PORT) || 3000
@@ -129,6 +129,7 @@ function reviewWords(text) {
     insultTeacher: atTeacherBad(text).length > 0,
     profanity: findBad(text).length > 0,
     quoted: isQuoted(text),
+    situation: false, // 단어 목록으로는 구분 못 함
     danger: findDanger(text).length > 0,
     prank: false,
     reason: '',
@@ -145,9 +146,13 @@ function badOf(text, v) {
   return v.by === 'ai' && !v.profanity ? [] : findBad(text)
 }
 
-// 바로 경고 줄지: 학생이 직접 쓴 욕이면 (누가 한 말 옮긴 건 빼고)
-function shouldWarn(v) {
-  return v.insultTeacher || (v.profanity && !v.quoted)
+// 바로 경고 줄지
+// - 처음 보내는 사연(상황 설명)은 욕이 섞여도 경고 안 함. 선생님한테 욕한 것만
+// - 대화는 학생이 직접 쓴 욕이면 경고. 누가 한 말 옮긴 거나 있었던 일 설명하다 나온 건 빼고
+function shouldWarn(v, story = false) {
+  if (v.insultTeacher) return true
+  if (story) return false
+  return v.profanity && !v.quoted && !v.situation
 }
 
 // 욕 쓰면 자동 경고
@@ -221,7 +226,7 @@ student.post('/api/requests', async (req, res) => {
     reply: '',
     at: now,
   }
-  const warned = shouldWarn(v)
+  const warned = shouldWarn(v, true)
   if (warned) autoWarn(r, v)
   db.reqs.push(r)
   save()
@@ -288,7 +293,7 @@ student.post('/api/review', async (req, res) => {
   if (!text) return res.status(400).json({ error: '내용이 비었어' })
   const useAi = ai.enabled() && !tooMany(req)
   const v = useAi ? await review(text) : await reviewWords(text)
-  res.json({ ...v, words: badOf(text, v), warn: shouldWarn(v) })
+  res.json({ ...v, words: badOf(text, v), warn: shouldWarn(v, req.body.story === true) })
 })
 
 // 말 점검을 ChatGPT로 (키 있을 때만). 저장은 안 하고 결과만 돌려줌
@@ -329,8 +334,18 @@ const teacher = makeApp('teacher')
 // 토큰은 그냥 메모리에. 서버 껐다 켜면 다시 로그인하면 됨
 const tokens = new Set()
 
+// 선생님 주소가 공개일 수도 있어서 PIN 막 찍어보기 막기 (10분에 5번 틀리면 잠깐 막음)
+const loginFails = new Map()
 teacher.post('/api/login', (req, res) => {
-  if (req.body.pin !== PIN) return res.status(401).json({ error: 'PIN이 틀렸어요' })
+  const now = Date.now()
+  const fails = (loginFails.get(req.ip) || []).filter(t => now - t < 10 * 60000)
+  if (fails.length >= 5) return res.status(429).json({ error: 'PIN을 너무 많이 틀렸어요. 10분 뒤에 다시 해주세요.' })
+  if (req.body.pin !== PIN) {
+    fails.push(now)
+    loginFails.set(req.ip, fails)
+    return res.status(401).json({ error: 'PIN이 틀렸어요' })
+  }
+  loginFails.delete(req.ip)
   const t = crypto.randomBytes(16).toString('hex')
   tokens.add(t)
   res.json({ token: t })
@@ -343,9 +358,11 @@ teacher.use('/api', (req, res, next) => {
   next()
 })
 
+// 이번 주 = 월요일부터 오늘까지
 function weekMoods(cls) {
-  const from = today(6)
-  return db.moods.filter(m => m.date >= from && (!cls || m.cls === cls))
+  const from = today(fromMonday())
+  const to = today()
+  return db.moods.filter(m => m.date >= from && m.date <= to && (!cls || m.cls === cls))
 }
 
 function reqsOf(cls) {
@@ -359,11 +376,13 @@ teacher.get('/api/moods', (req, res) => {
   list.forEach(m => counts[m.mood - 1]++)
 
   const days = []
-  for (let i = 6; i >= 0; i--) {
-    const d = today(i)
+  // 월 화 수 목 금 토 일. 아직 안 온 날은 future
+  const mo = fromMonday()
+  for (let i = 0; i < 7; i++) {
+    const d = today(mo - i)
     const c = [0, 0, 0, 0, 0]
     list.filter(m => m.date === d).forEach(m => c[m.mood - 1]++)
-    days.push({ date: d, counts: c })
+    days.push({ date: d, counts: c, future: i > mo })
   }
   res.json({ total: list.length, counts, days })
 })
@@ -686,41 +705,200 @@ function onListenError(port) {
 
 // codespace면 학생 포트를 공개(Public)로 바꿔서 깃헙 로그인 없이 들어오게
 // 주소(https://codespace이름-3000.app.github.dev)는 codespace 안 지우면 계속 똑같음
-const { execFile } = require('child_process')
+// 학교/조직 설정 때문에 공개가 막혀 있으면 ngrok으로 (아래 startNgrok)
+const { execFile, execSync, spawn } = require('child_process')
+const os = require('os')
+
+// 선생님 주소도 밖에서 열지: PIN 바꿨으면 열고, 1234 그대로면 안 엶 (아무나 들어올 수 있으니까)
+// TEACHER_PUBLIC=1 이면 무조건 열고, 0이면 무조건 안 엶
+const PIN_CHANGED = PIN !== '1234'
+const TEACHER_OPEN = process.env.TEACHER_PUBLIC === '1' || (process.env.TEACHER_PUBLIC !== '0' && PIN_CHANGED)
+
+const sleep = ms => new Promise(r => setTimeout(r, ms))
+
+// 로그인 안 한 사람처럼 주소에 들어가 봄
+// open: 잘 들어가짐 / login: 깃헙 로그인 화면으로 보내짐 / unknown: 모르겠음
+async function checkOpen(url) {
+  let state = 'unknown'
+  for (let i = 0; i < 5; i++) {
+    try {
+      const r = await fetch(url + '/api/ping', { redirect: 'manual', headers: { accept: 'application/json' } })
+      const loc = r.headers.get('location') || ''
+      if (r.status >= 200 && r.status < 300) return 'open'
+      if (r.status === 401 || r.status === 403 || (r.status >= 300 && r.status < 400 && /login|auth/i.test(loc))) state = 'login'
+    } catch (e) {}
+    await sleep(3000) // 공개로 바꾼 게 적용되는 데 몇 초 걸릴 때가 있음
+  }
+  return state
+}
 
 function makePublic(tries = 2) {
   const ports = [`${PORT}:public`]
-  // 선생님 화면은 기본으로 비공개 (깃헙 로그인한 사람만). 다른 폰에서도 열려면 TEACHER_PUBLIC=1
-  if (process.env.TEACHER_PUBLIC === '1') ports.push(`${TEACHER_PORT}:public`)
+  if (TEACHER_OPEN) ports.push(`${TEACHER_PORT}:public`)
 
-  execFile('gh', ['codespace', 'ports', 'visibility', ...ports, '-c', process.env.CODESPACE_NAME], (err, stdout, stderr) => {
+  execFile('gh', ['codespace', 'ports', 'visibility', ...ports, '-c', process.env.CODESPACE_NAME], async (err, stdout, stderr) => {
     if (err && tries > 1) {
       // 포트가 막 열린 참이면 실패할 때가 있어서 한 번 더
       return setTimeout(() => makePublic(tries - 1), 4000)
     }
+    const why = err ? (err.code === 'ENOENT' ? 'gh 프로그램이 없어요' : String(stderr || err.message).trim().split('\n')[0]) : ''
+
+    // 진짜 로그인 없이 들어가지는지 확인
+    const state = await checkOpen(urlOf(PORT))
     console.log('')
-    if (err) {
-      console.log('학생 주소를 자동으로 공개로 못 바꿨어요. 직접 한 번만 바꿔주세요:')
-      console.log(`  아래 "포트(Ports)" 탭 → ${PORT} 오른쪽 클릭 → Port Visibility → Public`)
-      const why = err.code === 'ENOENT' ? 'gh 프로그램이 없어요' : String(stderr || err.message).trim().split('\n')[0]
-      if (why) console.log(`  (이유: ${why})`)
-    } else {
-      console.log('학생 주소를 공개로 바꿨어요. 깃헙 로그인 없이 누구나 들어올 수 있어요.')
-      if (process.env.TEACHER_PUBLIC === '1') console.log('선생님 주소도 공개예요. PIN 꼭 바꿔두기!')
-      else console.log('선생님 주소는 비공개 그대로예요 (깃헙 로그인한 사람만).')
+    if (state === 'open') {
+      console.log('학생 주소 확인 완료! 깃헙 로그인 없이 들어가져요.')
+      console.log('(처음 들어가면 깃헙 안내 화면이 한 번 떠요 → Continue 누르면 됨)')
+      if (TEACHER_OPEN) console.log('선생님 주소도 공개예요. PIN 있는 사람만 들어갈 수 있어요.')
+      else console.log('선생님 주소는 비공개예요 (PIN이 1234 그대로라서). .env에서 TEACHER_PIN 바꾸면 선생님 주소도 열려요.')
+      showQr('학생 화면 고정 주소 (codespace 안 지우면 안 바뀜)', urlOf(PORT))
+      return
     }
-    showStudentQr()
+    if (state === 'login') {
+      console.log('!!! 학생 주소가 아직 깃헙 로그인해야 들어가져요 !!!')
+      if (why) console.log(`  (공개로 바꾸기 실패: ${why})`)
+      console.log('  학교/동아리 조직 설정이 공개 포트를 막고 있을 수 있어요.')
+    } else {
+      console.log('학생 주소가 로그인 없이 들어가지는지 확인을 못 했어요. 깃헙 로그인 안 된 폰으로 한 번 열어보세요.')
+      if (why) console.log(`  (공개로 바꾸기 실패: ${why})`)
+      console.log(`  로그인 화면이 뜨면: 아래 "포트(Ports)" 탭 → ${PORT} 오른쪽 클릭 → Port Visibility → Public`)
+    }
+    console.log('')
+    console.log('그래도 안 되면 ngrok으로 열기 (주소 고정 가능):')
+    ngrokHelp()
+    showQr('학생 화면 (깃헙 로그인 필요할 수 있음)', urlOf(PORT))
   })
 }
 
-function showStudentQr() {
-  const url = urlOf(PORT)
+function ngrokHelp() {
+  console.log('  1. https://dashboard.ngrok.com 가입 → Your Authtoken 복사')
+  console.log('  2. 주소 고정하려면 Domains 메뉴에서 무료 도메인 하나 받기 (○○○.ngrok-free.app)')
+  console.log('  3. .env 파일에')
+  console.log('       NGROK_AUTHTOKEN=복사한토큰')
+  console.log('       NGROK_DOMAIN=○○○.ngrok-free.app')
+  console.log('  4. Ctrl+C 로 끄고 npm start 다시')
+}
+
+function showQr(title, url) {
   console.log('')
-  console.log('=== 학생 화면 고정 주소 (codespace 안 지우면 안 바뀜) ===')
+  console.log(`=== ${title} ===`)
   require('qrcode-terminal').generate(url, { small: true }, code => console.log(code))
   console.log(' ' + url)
   console.log('')
 }
+
+// ---------- ngrok ----------
+// NGROK_AUTHTOKEN 있으면 npm start 할 때 같이 켬
+// NGROK_DOMAIN(무료 고정 도메인) 있으면 학생 주소는 매번 똑같음
+let ngrokProc = null
+
+function hasNgrok() {
+  try {
+    execSync('command -v ngrok', { stdio: 'ignore' })
+    return true
+  } catch (e) {
+    return false
+  }
+}
+
+function startNgrok() {
+  if (!hasNgrok()) {
+    console.log('')
+    console.log('NGROK_AUTHTOKEN은 있는데 ngrok 프로그램이 없어요. 이거 한 번 실행하고 npm start 다시:')
+    console.log('  bash scripts/install-tunnel.sh')
+    if (process.env.CODESPACE_NAME) makePublic()
+    return
+  }
+
+  const domain = (process.env.NGROK_DOMAIN || '').replace(/^https?:\/\//, '').replace(/\/+$/, '')
+  let conf = 'version: "2"\n'
+  conf += `authtoken: ${JSON.stringify(process.env.NGROK_AUTHTOKEN)}\n`
+  conf += 'tunnels:\n'
+  conf += `  student:\n    proto: http\n    addr: ${PORT}\n`
+  if (domain) conf += `    domain: ${JSON.stringify(domain)}\n`
+  if (TEACHER_OPEN) conf += `  teacher:\n    proto: http\n    addr: ${TEACHER_PORT}\n`
+  // 토큰 들어 있어서 나만 읽게 만들고, 켜지면 바로 지움
+  const file = path.join(os.tmpdir(), `shimpyo-ngrok-${process.pid}.yml`)
+  fs.writeFileSync(file, conf, { mode: 0o600 })
+
+  console.log('')
+  console.log('ngrok 켜는 중...')
+  ngrokProc = spawn('ngrok', ['start', '--all', '--config', file, '--log', 'stdout', '--log-format', 'json'])
+  const urls = {}
+  let shown = false
+  let buf = ''
+  let lastErr = ''
+  const timer = setTimeout(() => {
+    if (!shown) console.log('ngrok 주소를 못 받았어요' + (lastErr ? `: ${lastErr}` : '. 인터넷 연결 확인해보세요'))
+  }, 20000)
+
+  ngrokProc.stdout.on('data', d => {
+    buf += d
+    const lines = buf.split('\n')
+    buf = lines.pop()
+    lines.forEach(line => {
+      let j
+      try { j = JSON.parse(line) } catch (e) { return }
+      if (j.lvl === 'eror' || j.lvl === 'crit') lastErr = j.err || j.msg
+      if (j.msg === 'started tunnel' && j.url) urls[j.name] = j.url
+      if (!shown && urls.student && (!TEACHER_OPEN || urls.teacher)) {
+        shown = true
+        clearTimeout(timer)
+        fs.rm(file, { force: true }, () => {})
+        showNgrok(urls, domain)
+      }
+    })
+  })
+  // 설정 잘못되면 로그 말고 그냥 에러 글자로 나올 때도 있음
+  ngrokProc.stderr.on('data', d => {
+    const t = String(d).replace(/^ERROR:\s*/gm, '').trim()
+    if (t) lastErr = t
+  })
+  ngrokProc.on('error', e => { lastErr = e.message })
+  ngrokProc.on('exit', code => {
+    clearTimeout(timer)
+    fs.rm(file, { force: true }, () => {})
+    if (shown) {
+      console.log('ngrok이 꺼졌어요. 학생 주소가 안 열릴 거예요. 서버 다시 켜주세요.')
+      return
+    }
+    console.log('')
+    console.log(`ngrok 켜기 실패: ${ngrokWhy(lastErr) || '종료 코드 ' + code}`)
+    if (process.env.CODESPACE_NAME) {
+      console.log('일단 codespace 주소로 열어볼게요.')
+      makePublic()
+    }
+  })
+}
+
+// 자주 나오는 ngrok 에러를 알아듣게
+function ngrokWhy(err) {
+  if (!err) return ''
+  if (/ERR_NGROK_105|ERR_NGROK_107|authtoken/i.test(err)) return 'NGROK_AUTHTOKEN이 틀렸어요. 대시보드에서 다시 복사해주세요'
+  if (/ERR_NGROK_108/.test(err)) return '이 ngrok 계정이 벌써 다른 데서 켜져 있어요. 다른 터미널/컴퓨터의 ngrok을 끄고 다시'
+  if (/ERR_NGROK_320[0-9]|domain/i.test(err)) return `NGROK_DOMAIN이 이 계정 도메인이 아니에요. ngrok 대시보드 Domains에 있는 그대로 넣기 (${err.split('\n')[0]})`
+  if (/ERR_NGROK_324|limited to 1|simultaneous/i.test(err)) return '무료 계정이라 터널 개수가 모자라요. .env에 TEACHER_PUBLIC=0 넣고 학생 것만 열기'
+  return err.split('\n')[0]
+}
+
+function showNgrok(urls, domain) {
+  console.log('')
+  console.log('ngrok 켜짐! 깃헙 로그인 없이 누구나 들어올 수 있어요.')
+  console.log('(처음 들어가면 ngrok 안내 화면이 떠요 → Visit Site 누르면 됨)')
+  showQr(domain ? '학생 화면 고정 주소 (ngrok 고정 도메인)' : '학생 화면 (서버 다시 켜면 바뀜. NGROK_DOMAIN 넣으면 고정)', urls.student)
+  if (urls.teacher) {
+    console.log(`선생님 화면 → ${urls.teacher}  (선생님만! 서버 다시 켜면 주소 바뀜)`)
+  } else {
+    console.log('선생님 화면은 ngrok으로 안 열었어요 (PIN이 1234 그대로라서). .env에서 TEACHER_PIN 바꾸면 같이 열려요.')
+    if (process.env.CODESPACE_NAME) console.log(`  codespace 주인은 여기로 → ${urlOf(TEACHER_PORT)}`)
+  }
+  console.log('')
+}
+
+process.on('exit', () => { if (ngrokProc) ngrokProc.kill() })
+// Ctrl+C로 끌 때도 위에 exit가 불리게
+process.on('SIGINT', () => process.exit(0))
+process.on('SIGTERM', () => process.exit(0))
 
 // ---------- ChatGPT 키 확인 ----------
 let aiState = 'off'
@@ -779,10 +957,9 @@ let opened = 0
 function onOpen() {
   opened += 1
   if (opened < 2) return
-  if (process.env.CODESPACE_NAME && !process.env.SHIMPYO_SHARE) {
-    // 포트 연결될 시간 조금 주고
-    setTimeout(makePublic, 2000)
-  }
+  if (process.env.SHIMPYO_SHARE) return // npm run share가 따로 주소 만듦
+  if (process.env.NGROK_AUTHTOKEN) startNgrok()
+  else if (process.env.CODESPACE_NAME) setTimeout(makePublic, 2000) // 포트 연결될 시간 조금 주고
 }
 
 student.listen(PORT, () => {

@@ -29,8 +29,8 @@ if [ "$WHICH" = "ngrok" ]; then
   fi
 
   # 무료 계정은 도메인이 하나라서 학생 화면만 엶 (둘 다 열면 같은 주소에 겹침)
-  # 선생님 화면은 npm run tunnel (cloudflare)로 따로
-  echo "ngrok으로 학생 화면만 열어요. 선생님 화면은 다른 터미널에서 npm run tunnel"
+  # 선생님 화면은 같은 주소 밑 /teacher/ (TEACHER_PIN 바꿨을 때)
+  echo "ngrok으로 학생 화면 열어요. 선생님 화면은 그 주소 뒤에 /teacher/ (PIN 바꿨을 때만)"
   if [ -n "$NGROK_DOMAIN" ]; then
     ngrok http "$PORT" --authtoken "$NGROK_AUTHTOKEN" --domain "$NGROK_DOMAIN"
   else

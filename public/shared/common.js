@@ -131,7 +131,7 @@ function showOffline(on) {
   if (on && !offlineTimer) {
     offlineTimer = setInterval(async () => {
       try {
-        const r = await fetch('/api/ping', { cache: 'no-store' })
+        const r = await fetch('api/ping', { cache: 'no-store' })
         if (r.ok) window.dispatchEvent(new Event('online'))
       } catch (e) {}
     }, 5000)
@@ -147,7 +147,7 @@ function showOffline(on) {
 function setupPwa(app, onlineMsg) {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js?app=' + app).catch(e => console.log('서비스 워커 등록 실패', e))
+      navigator.serviceWorker.register('sw.js?app=' + app).catch(e => console.log('서비스 워커 등록 실패', e))
     })
   }
 

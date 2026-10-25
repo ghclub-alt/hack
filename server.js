@@ -716,6 +716,18 @@ const os = require('os')
 const PIN_CHANGED = PIN !== '1234'
 const TEACHER_OPEN = process.env.TEACHER_PUBLIC === '1' || (process.env.TEACHER_PUBLIC !== '0' && PIN_CHANGED)
 
+// 선생님 화면을 학생 주소 밑 /teacher/ 에도 붙임
+// ngrok 무료는 고정 도메인이 하나뿐이라 이렇게 해야 선생님 주소도 고정됨 (3001은 그대로 따로 열림)
+if (TEACHER_OPEN) {
+  // /teacher 로 오면 /teacher/ 로 (끝에 / 있어야 상대 경로가 맞음)
+  student.use((req, res, next) => {
+    if (req.path !== '/teacher') return next()
+    res.redirect('/teacher/' + req.originalUrl.slice('/teacher'.length))
+  })
+  student.use('/teacher', teacher)
+}
+const teacherPath = url => url + '/teacher/'
+
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
 // 로그인 안 한 사람처럼 주소에 들어가 봄
@@ -751,9 +763,10 @@ function makePublic(tries = 2) {
     if (state === 'open') {
       console.log('학생 주소 확인 완료! 깃헙 로그인 없이 들어가져요.')
       console.log('(처음 들어가면 깃헙 안내 화면이 한 번 떠요 → Continue 누르면 됨)')
-      if (TEACHER_OPEN) console.log('선생님 주소도 공개예요. PIN 있는 사람만 들어갈 수 있어요.')
-      else console.log('선생님 주소는 비공개예요 (PIN이 1234 그대로라서). .env에서 TEACHER_PIN 바꾸면 선생님 주소도 열려요.')
       showQr('학생 화면 고정 주소 (codespace 안 지우면 안 바뀜)', urlOf(PORT))
+      if (TEACHER_OPEN) console.log(`선생님 화면 → ${teacherPath(urlOf(PORT))}  (PIN 있는 사람만 들어갈 수 있어요)`)
+      else console.log('선생님 화면은 비공개예요 (PIN이 1234 그대로라서). .env에서 TEACHER_PIN 바꾸면 밖에서도 열려요.')
+      console.log('')
       return
     }
     if (state === 'login') {
@@ -803,9 +816,9 @@ function hasNgrok() {
   }
 }
 
-// ngrok 무료 계정은 도메인이 하나뿐이라 학생 화면만 ngrok으로 엶
+// ngrok 무료 계정은 도메인이 하나뿐이라 터널은 학생 거 하나만
 // (둘 다 열면 같은 주소에 학생/선생님이 겹쳐서 선생님 화면만 뜨는 일이 생김)
-// 선생님 화면은 cloudflare 임시 주소로 따로 엶
+// 선생님 화면은 같은 주소 밑 /teacher/ 로 들어감
 function startNgrok() {
   if (!hasNgrok()) {
     console.log('')
@@ -889,7 +902,7 @@ function ngrokWhy(err) {
 // 주소에 들어가 보면 진짜 학생 화면이 나오는지
 async function whichApp(url) {
   try {
-    const r = await fetch(url + '/api/app', { headers: { 'ngrok-skip-browser-warning': '1', accept: 'application/json' } })
+    const r = await fetch(url + '/api/app', { headers: { 'ngrok-skip-browser-warning': '1', accept: 'application/json' }, signal: AbortSignal.timeout(8000) })
     return (await r.json()).app || ''
   } catch (e) {
     return ''
@@ -909,23 +922,12 @@ async function showNgrok(url, domain) {
   } else if (app !== 'student') {
     console.log('(학생 화면 확인은 못 했어요. 폰으로 한 번 열어보세요)')
   }
-  openTeacherOutside()
-}
 
-// 선생님 화면을 밖에서 열기: cloudflare 임시 주소 (켤 때마다 바뀜)
-async function openTeacherOutside() {
-  const cf = require('./scripts/cloudflare')
-  if (!TEACHER_OPEN) {
-    console.log('선생님 화면은 밖에서 안 열었어요 (PIN이 1234 그대로라서). .env에서 TEACHER_PIN 바꾸면 같이 열려요.')
-  } else if (!cf.hasCloudflared()) {
-    console.log('선생님 화면을 밖에서 열려면 cloudflared가 필요해요: bash scripts/install-tunnel.sh')
+  if (TEACHER_OPEN) {
+    console.log(`선생님 화면 → ${teacherPath(url)}  (선생님만! 학생한테 보여주지 말기)`)
   } else {
-    try {
-      const url = await cf.openTunnel(TEACHER_PORT)
-      console.log(`선생님 화면 → ${url}  (선생님만! 서버 다시 켜면 주소 바뀜)`)
-    } catch (e) {
-      console.log(`선생님 화면 주소 만들기 실패: ${e.message}`)
-    }
+    console.log('선생님 화면은 밖에서 안 열었어요 (PIN이 1234 그대로라서). .env에서 TEACHER_PIN 바꾸면')
+    console.log(`  ${teacherPath(url)} 로 열려요`)
   }
   if (process.env.CODESPACE_NAME) console.log(`  codespace 주인은 여기로도 됨 → ${urlOf(TEACHER_PORT)}`)
   console.log('')

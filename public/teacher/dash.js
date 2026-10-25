@@ -22,7 +22,7 @@ $('artFaces').innerHTML = MOODS.map(m => face(m.v, 48)).join('')
 $('loginForm').onsubmit = async e => {
   e.preventDefault()
   try {
-    const res = await api('/api/login', { body: { pin: $('pin').value } })
+    const res = await api('api/login', { body: { pin: $('pin').value } })
     sessionStorage.setItem('shimpyo_token', res.token)
     $('loginErr').textContent = ''
     start()
@@ -47,7 +47,7 @@ function start() {
 // 사이드바에 ChatGPT 판단 켜졌는지
 async function showAiState() {
   try {
-    const c = await api('/api/config')
+    const c = await api('api/config')
     const why = {
       'bad-key': '키가 틀렸어요',
       'no-model': '이 키로 못 쓰는 모델이에요',
@@ -105,9 +105,9 @@ async function refresh() {
   try {
     const q = '?cls=' + curCls
     const [mood, alerts, list] = await Promise.all([
-      api('/api/moods' + q),
-      api('/api/alerts' + q),
-      api('/api/requests' + q),
+      api('api/moods' + q),
+      api('api/alerts' + q),
+      api('api/requests' + q),
     ])
     reqs = list
     renderAlerts(alerts)
@@ -143,7 +143,7 @@ function connectEvents() {
   if (!window.EventSource) return
   if (es) es.close()
   const token = sessionStorage.getItem('shimpyo_token')
-  es = new EventSource(`/api/events?cls=${encodeURIComponent(curCls)}&token=${encodeURIComponent(token)}`)
+  es = new EventSource(`api/events?cls=${encodeURIComponent(curCls)}&token=${encodeURIComponent(token)}`)
   es.addEventListener('req', refreshSoon)
   es.addEventListener('mood', refreshSoon)
   es.addEventListener('all', refreshSoon)
@@ -531,7 +531,7 @@ $('reqList').addEventListener('click', async e => {
       const ta = btn.closest('.req').querySelector('textarea')
       if (!ta.value.trim()) return ta.focus()
       btn.disabled = true // 두 번 안 가게
-      await api(`/api/requests/${code}/reply`, { body: { reply: ta.value.trim() } }).finally(() => { btn.disabled = false })
+      await api(`api/requests/${code}/reply`, { body: { reply: ta.value.trim() } }).finally(() => { btn.disabled = false })
       ta.value = ''
       toast('답장 보냈어요')
     } else if (btn.dataset.act === 'warn') {
@@ -543,19 +543,19 @@ $('reqList').addEventListener('click', async e => {
         ''
       )
       if (msg === null) return
-      await api(`/api/requests/${code}/warn`, { body: { text: msg } })
+      await api(`api/requests/${code}/warn`, { body: { text: msg } })
       toast(n >= 3 ? '경고 보내고 대화를 닫았어요' : '경고 보냈어요')
     } else if (btn.dataset.act === 'delete') {
       if (!confirm('이 대화를 완전히 지울까요?\n학생 화면에서도 없어지고 되돌릴 수 없어요.')) return
-      await api(`/api/requests/${code}/delete`, { method: 'POST', body: {} })
+      await api(`api/requests/${code}/delete`, { method: 'POST', body: {} })
       toast('지웠어요')
     } else if (btn.dataset.act === 'unlock') {
       if (!confirm('대화를 다시 열까요? 경고 횟수도 0으로 돌아가요.')) return
-      await api(`/api/requests/${code}/unlock`, { method: 'POST', body: {} })
+      await api(`api/requests/${code}/unlock`, { method: 'POST', body: {} })
       toast('대화를 다시 열었어요')
     } else {
       if (!confirm('마무리할까요? 학생 화면에도 "마무리"로 보여요.')) return
-      await api(`/api/requests/${code}/done`, { method: 'POST', body: {} })
+      await api(`api/requests/${code}/done`, { method: 'POST', body: {} })
       toast('마무리했어요')
     }
     refresh()
@@ -576,7 +576,7 @@ document.querySelectorAll('#filters button').forEach(b => {
 // ---------- 시연용 ----------
 $('btnSeed').onclick = async () => {
   if (!curCls) return toast('반을 하나 골라주세요')
-  await api('/api/seed', { body: { cls: curCls } })
+  await api('api/seed', { body: { cls: curCls } })
   lastNew = -1
   await refresh()
   toast('시연용 데이터 넣었어요')
@@ -584,7 +584,7 @@ $('btnSeed').onclick = async () => {
 
 $('btnClear').onclick = async () => {
   if (!confirm('기분 기록이랑 도움 요청 전부 지워요. 진짜요?')) return
-  await api('/api/clear', { method: 'POST', body: {} })
+  await api('api/clear', { method: 'POST', body: {} })
   lastNew = -1
   refresh()
 }

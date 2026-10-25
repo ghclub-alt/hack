@@ -5,7 +5,7 @@
 // OPENAI_API_KEY 없거나 실패하면 null → 서버가 단어 목록으로 대신 판단
 
 const KEY = process.env.OPENAI_API_KEY || ''
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+const MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini'
 const BASE = (process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1').replace(/\/$/, '')
 const TIMEOUT = 8000 // 너무 오래 걸리면 그냥 단어 목록으로
 

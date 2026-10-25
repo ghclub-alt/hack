@@ -226,7 +226,7 @@ npm start
 | `NGROK_AUTHTOKEN` | (없음) | 넣으면 `npm start` 할 때 ngrok도 켜짐 |
 | `NGROK_DOMAIN` | (없음) | ngrok 무료 고정 도메인 (학생 주소 안 바뀌게) |
 | `OPENAI_API_KEY` | (없음) | 넣으면 ChatGPT로 메시지 판단 |
-| `OPENAI_MODEL` | gpt-4o-mini | 쓸 모델 |
+| `OPENAI_MODEL` | gpt-4.1-mini | 쓸 모델 |
 
 **시연 전에 PIN 꼭 바꾸기!**
 
@@ -272,7 +272,7 @@ cp .env.example .env
 
 ```
 ChatGPT → 키 확인 중... 키 sk-...a1b2 (codespace 비밀값)
-ChatGPT → 켜짐! (gpt-4o-mini) 말 점검이랑 메시지 판단에 써요
+ChatGPT → 켜짐! (gpt-4.1-mini) 말 점검이랑 메시지 판단에 써요
 ```
 
 | 나오는 말 | 뜻 / 할 일 |
@@ -293,7 +293,7 @@ ChatGPT → 켜짐! (gpt-4o-mini) 말 점검이랑 메시지 판단에 써요
 - 학생 이름은 안 보내고 **메시지 내용만** 보내요. 학생 화면에도 "AI가 같이 확인해" 안내가 떠요
 - 8초 안에 답이 없거나 실패하면 그냥 단어 목록으로 판단해요 (그래서 키 잘못 넣어도 앱은 돌아감. 서버 로그에 `[AI] 실패` 찍힘)
 - 말 점검은 한 사람이 1분에 20번까지만 (돈 나가니까)
-- 메시지 하나에 1번 부르고, gpt-4o-mini면 해커톤 동안 몇백 원 수준. 그래도 OpenAI 대시보드에서 사용 한도 걸어두기
+- 메시지 하나에 1번 부르고, gpt-4.1-mini도 싼 편이라 해커톤 동안은 얼마 안 나와요. 그래도 OpenAI 대시보드에서 사용 한도 걸어두기
 
 ## 코드 최신으로 받기 (codespace 안 지우고)
 

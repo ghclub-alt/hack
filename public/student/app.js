@@ -168,8 +168,7 @@ $('examples').querySelectorAll('button').forEach(b => {
 })
 
 function checkMsg(text) {
-  const flat = text.replace(/\s/g, '')
-  const found = BAD_WORDS.filter(b => flat.includes(b.word.replace(/\s/g, '')))
+  const found = matchBad(text)
   let score = found.reduce((sum, b) => sum + b.level, 0)
   const tips = []
 

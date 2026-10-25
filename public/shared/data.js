@@ -73,6 +73,66 @@ const BAD_WORDS = [
   { word: '미친놈', level: 2, alt: null },
   { word: '미친년', level: 3, alt: null },
   { word: 'ㅁㅊ', level: 1, alt: null },
+
+  // ---- 2026년 유행어 중에 욕/비하 들어간 거 (뉴스랑 신조어 사전 찾아보고 추가, 2026.10) ----
+  // 욕 돌려 말하기
+  { word: '시바', level: 3, alt: null },
+  { word: '씨바', level: 3, alt: null },
+  { word: '씨빨', level: 3, alt: null },
+  { word: '시팔', level: 3, alt: null },
+  { word: '씨팔', level: 3, alt: null },
+  { word: '시벌', level: 3, alt: null },
+  { word: '씨벌', level: 3, alt: null },
+  { word: '쓰벌', level: 3, alt: null },
+  { word: '쉬발', level: 3, alt: null },
+  { word: '슈발', level: 3, alt: null },
+  { word: '십새', level: 3, alt: null },
+  { word: '썅', level: 2, alt: null },
+  { word: '샤갈', level: 1, alt: '아 진짜' }, // 욕 대신 쓰는 감탄사로 유행 (화가 샤갈 말고)
+  { word: '개새', level: 3, alt: null },
+  { word: '개색기', level: 3, alt: null },
+  { word: '개색히', level: 3, alt: null },
+  { word: 'ㄱㅅㄲ', level: 3, alt: null },
+  { word: 'ㅅㄲ', level: 2, alt: null },
+  { word: 'ㅄ', level: 3, alt: null },
+  { word: 'ㅈ같', level: 3, alt: null },
+  { word: 'ㅈㄹ', level: 2, alt: null },
+  { word: 'ㄲㅈ', level: 2, alt: '지금은 좀 혼자 있고 싶어' },
+  { word: 'ㄷㅊ', level: 2, alt: '잠깐만, 내 말도 들어줄래?' },
+  { word: '개같', level: 2, alt: null },
+  { word: '개소리', level: 2, alt: '그건 아닌 것 같아' },
+  { word: '개빡', level: 1, alt: '진짜 화나' },
+  { word: '졸라', level: 1, alt: '진짜', alone: true }, // "엄마를 졸라서" 때문에 따로 쓴 것만
+  // '존나' 줄인 '존'이 들어간 유행어
+  { word: '두존크', level: 2, alt: null }, // 두상 존X 크다. 외모 놀림
+  { word: '존잘', level: 1, alt: '진짜 잘생겼다' },
+  { word: '존예', level: 1, alt: '진짜 예쁘다' },
+  { word: '존맛', level: 1, alt: '진짜 맛있어' },
+  { word: '존버', level: 1, alt: '끝까지 버티기' },
+  // 패드립
+  { word: '느개비', level: 3, alt: null },
+  { word: '애비', level: 2, alt: null, alone: 'front' },
+  { word: '엠창', level: 3, alt: null },
+  { word: '앰창', level: 3, alt: null },
+  { word: '엄창', level: 3, alt: null },
+  // 사람 깎아내리는 말
+  { word: '급식충', level: 2, alt: null },
+  { word: '진지충', level: 2, alt: null },
+  { word: '맘충', level: 3, alt: null },
+  { word: '틀딱', level: 3, alt: null },
+  { word: '한남충', level: 3, alt: null }, // 그냥 '한남'은 "한 남자"도 걸려서 뺌
+  { word: '김치녀', level: 3, alt: null },
+  { word: '짱깨', level: 3, alt: null },
+  { word: '쪽바리', level: 3, alt: null },
+  { word: '애자', level: 3, alt: null, alone: 'front' }, // "그 애 자나" 때문에
+  // 2026년에 교실까지 퍼졌다고 뉴스 나온 혐오 밈 (전교조 조사, 2026.7)
+  { word: '운지', level: 3, alt: null, alone: 'front' }, // "어려운지" 때문에 따로 쓴 것만
+  { word: '부엉이바위', level: 3, alt: null },
+  { word: '노무노무', level: 3, alt: null },
+  { word: '문재앙', level: 3, alt: null },
+  { word: '홍어', level: 3, alt: null },
+  { word: '탱크데이', level: 3, alt: null },
+  { word: '광주폭동', level: 3, alt: null },
 ]
 
 const GUIDE = [
@@ -139,14 +199,31 @@ function findDanger(text) {
   return DANGER_WORDS.filter(w => flat.includes(w.replace(/\s/g, '')))
 }
 
-// 욕 아닌데 걸리는 말버릇은 빼고 봄 ("죽어라 공부했다", "웃겨 죽어")
-const SAFE_PHRASES = /(죽어라|웃겨죽어|배고파죽어|좋아죽어|귀여워죽어|졸려죽어|더워죽어|추워죽어|죽을뻔)/g
+// 욕 아닌데 걸리는 말은 빼고 봄 ("죽어라 공부했다", "웃겨 죽어", 시바견, 피아노 운지법, 홍어회, 한남동...)
+const SAFE_PHRASES = new RegExp([
+  '죽어라', '웃겨죽어', '배고파죽어', '좋아죽어', '귀여워죽어', '졸려죽어', '더워죽어', '추워죽어', '죽을뻔',
+  '시바견', '시바이누', '운지법', '홍어회', '홍어삼합', '홍어무침', '홍어탕', '홍어찜',
+  '한남동', '한남대', '한남역', '한남오거리', '마르크샤갈', '샤갈의', '샤갈그림', '샤갈전',
+].join('|'), 'g')
+
+// 사이에 숫자나 기호 끼워서 피하는 거("시1발", "ㅅ.ㅂ")도 잡으려고 빼고 봄
+// alone 인 건 띄어쓰기 빼면 딴 말에 걸려서 따로 쓴 것만
+//   true: 앞뒤에 다른 글자 없을 때만 / 'front': 앞에만 (뒤에 "냐", "했다" 붙는 건 잡음)
+function flatText(text) {
+  return String(text).replace(/[\s0-9.,!?~@#$%^&*_+=|/\\'"`:;()[\]{}<>-]/g, '').replace(SAFE_PHRASES, '')
+}
+
+function matchBad(text) {
+  const flat = flatText(text)
+  const raw = String(text)
+  return BAD_WORDS.filter(b => b.alone
+    ? new RegExp(`(^|[^가-힣])${b.word}${b.alone === 'front' ? '' : '([^가-힣]|$)'}`).test(raw)
+    : flat.includes(b.word.replace(/\s/g, '')))
+}
 
 // 욕/상처 주는 말 찾기. 말 점검이랑 대화방 경고에 씀
 function findBad(text) {
-  const flat = String(text).replace(/\s/g, '').replace(SAFE_PHRASES, '')
-  const hit = BAD_WORDS.filter(b => flat.includes(b.word.replace(/\s/g, ''))).map(b => b.word)
-  return [...new Set(hit)]
+  return [...new Set(matchBad(text).map(b => b.word))]
 }
 
 // 선생님한테 대놓고 욕한 건지 (그러면 자동 경고)
@@ -178,5 +255,5 @@ function atTeacherBad(text) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { MOODS, TYPES, WANT, STATUS, DANGER_WORDS, BAD_WORDS, GUIDE, TIPS, findDanger, findBad, isQuoted, selfBad, atTeacherBad }
+  module.exports = { MOODS, TYPES, WANT, STATUS, DANGER_WORDS, BAD_WORDS, GUIDE, TIPS, findDanger, matchBad, findBad, isQuoted, selfBad, atTeacherBad }
 }

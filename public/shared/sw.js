@@ -3,7 +3,7 @@
 // 인터넷 끊겨도 화면은 뜨게만. api(기분, 도움 요청)는 저장 안 하고 항상 서버로 감
 
 const APP = new URL(location).searchParams.get('app') === 'teacher' ? 'teacher' : 'student'
-const VERSION = 'v12' // 파일 바꾸고 배포할 때 숫자 올리기
+const VERSION = 'v13' // 파일 바꾸고 배포할 때 숫자 올리기
 const CACHE = `shimpyo-${APP}-${VERSION}`
 // 선생님 화면은 학생 주소 밑 /teacher/ 에서도 돌아서 경로는 전부 sw.js 있는 곳 기준
 const BASE = new URL('./', location).pathname
